@@ -21,6 +21,18 @@ Stream accelerometer readings from an Arduino Nano 33 BLE Sense over Bluetooth L
 5. Serve the `docs` directory from `localhost` (for example, run `python3 -m http.server -d docs 8000`) and open `http://localhost:8000` in Chrome or Edge.
 6. Click **Verbind met Arduino** and select the advertised board.
 
+## Updating the Arduino Firmware
+
+Changes committed to GitHub do **not** update the Arduino board automatically. After pulling the latest repository changes, compile and upload the firmware manually:
+
+1. Open Arduino IDE 2.x.
+2. Open `arduino/ArduinoAccel/ArduinoAccel.ino`.
+3. Connect the Arduino Nano 33 BLE Sense to your computer with USB.
+4. Select the correct board and port, then click **Verify** to compile the sketch.
+5. Click **Upload** to flash the firmware to the board.
+6. Wait for the upload to finish.
+7. Open **Serial Monitor**, set it to **115200 baud**, and confirm that the device starts correctly.
+
 ## BLE protocol
 
 The sketch sends a notification every 50 ms (20 Hz) through the following custom GATT characteristic:
