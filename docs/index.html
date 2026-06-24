@@ -40,7 +40,8 @@
     .thresholds input { width: 100%; }.note { font-size: .87rem; line-height: 1.45; margin: 12px 0 0; }
     .diagnostics { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: .9rem; }.diagnostics th, .diagnostics td { padding: 8px; border-bottom: 1px solid #e6ebf2; text-align: left; }.diagnostics td { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
     .prediction-log { margin: 12px 0 0; padding-left: 20px; color: #46536a; }.prediction-log li { margin: 5px 0; }.prediction-log time { font-variant-numeric: tabular-nums; }
-    @media (max-width: 720px) { .statistics { grid-template-columns: repeat(2, minmax(0, 1fr)); }.thresholds { grid-template-columns: 1fr; } }
+    .behaviour-time { display: grid; grid-template-columns: repeat(5, minmax(110px, 1fr)); gap: 8px; margin-top: 14px; }.behaviour-time .stat { min-height: 84px; }
+    @media (max-width: 720px) { .statistics { grid-template-columns: repeat(2, minmax(0, 1fr)); }.thresholds { grid-template-columns: 1fr; }.behaviour-time { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 460px) { main { width: min(100% - 20px, 1100px); padding-top: 18px; }.controls button { flex: 1 1 140px; }.status { width: 100%; }.readings { gap: 7px; }.stat { padding: 10px; } }
   </style>
 </head>
@@ -105,6 +106,14 @@
       </table>
       <h3>Recent predictions</h3>
       <ol id="predictionLog" class="prediction-log"><li>Waiting for two complete 4-second windows.</li></ol>
+      <h3>Cumulative behaviour time</h3>
+      <div class="behaviour-time" aria-label="Cumulative classifier time for this session">
+        <div class="stat" style="--color:#718096"><span class="stat-label">Rest</span><strong id="timeRest" class="stat-value">0:00</strong></div>
+        <div class="stat" style="--color:#2b8a3e"><span class="stat-label">Walking</span><strong id="timeWalking" class="stat-value">0:00</strong></div>
+        <div class="stat" style="--color:#d97706"><span class="stat-label">Eating</span><strong id="timeEating" class="stat-value">0:00</strong></div>
+        <div class="stat" style="--color:#c2410c"><span class="stat-label">Fast locomotion</span><strong id="timeFastLocomotion" class="stat-value">0:00</strong></div>
+        <div class="stat" style="--color:#6d45c7"><span class="stat-label">Other active</span><strong id="timeOtherActive" class="stat-value">0:00</strong></div>
+      </div>
       <p class="note">This classifier was trained for rhino accelerometer data. Do not assume it is valid for another species, collar position, or sensor orientation without validation.</p>
     </section>
 
@@ -153,6 +162,7 @@
     const liveCanvas = document.getElementById("liveChart");
     const metricCanvas = document.getElementById("metricChart");
     const contexts = { live: liveCanvas.getContext("2d"), metric: metricCanvas.getContext("2d") };
+    const behaviourDurations = { rest: 0, walking: 0, eating: 0, fast_locomotion: 0, other_active: 0 };
     let device, characteristic, measuring = false, gravity, lastSummaryTimestamp = 0, currentStats;
     let rhinoClassifier = new RhinoBehaviourClassifier();
 
@@ -174,6 +184,8 @@
       document.getElementById("rhinoSampleRate").textContent = "—";
       ["featureMagLag2", "featureVedbaLag2", "featureMagLag1", "featureMagAcf1", "featureMeanCross"].forEach(id => document.getElementById(id).textContent = "—");
       document.getElementById("predictionLog").innerHTML = "<li>Waiting for two complete 4-second windows.</li>";
+      Object.keys(behaviourDurations).forEach(behaviour => behaviourDurations[behaviour] = 0);
+      renderBehaviourDurations();
       drawCharts();
     }
 
@@ -253,6 +265,7 @@
 
     function renderClassifier(result) {
       const { features } = result;
+      behaviourDurations[result.prediction] += result.sampleCount / result.samplingRateHz;
       document.getElementById("rhinoPrediction").textContent = result.prediction.replaceAll("_", " ");
       document.getElementById("rhinoSampleCount").textContent = `${result.sampleCount} / 200`;
       document.getElementById("rhinoSampleRate").textContent = result.samplingRateHz.toFixed(1);
@@ -267,6 +280,20 @@
         entry.textContent = `${new Date(item.timestamp).toLocaleTimeString()} — ${item.prediction.replaceAll("_", " ")}`;
         return entry;
       }));
+      renderBehaviourDurations();
+    }
+
+    function formatDuration(seconds) {
+      const wholeSeconds = Math.round(seconds);
+      return `${Math.floor(wholeSeconds / 60)}:${String(wholeSeconds % 60).padStart(2, "0")}`;
+    }
+
+    function renderBehaviourDurations() {
+      document.getElementById("timeRest").textContent = formatDuration(behaviourDurations.rest);
+      document.getElementById("timeWalking").textContent = formatDuration(behaviourDurations.walking);
+      document.getElementById("timeEating").textContent = formatDuration(behaviourDurations.eating);
+      document.getElementById("timeFastLocomotion").textContent = formatDuration(behaviourDurations.fast_locomotion);
+      document.getElementById("timeOtherActive").textContent = formatDuration(behaviourDurations.other_active);
     }
 
     function resizeCanvas(canvas, context) { const rect = canvas.getBoundingClientRect(), ratio = devicePixelRatio || 1; canvas.width = Math.round(rect.width * ratio); canvas.height = Math.round(rect.height * ratio); context.setTransform(ratio, 0, 0, ratio, 0, 0); }
@@ -279,7 +306,7 @@
     function exportCsv(filename, headers, rows) { const escape = value => `"${String(value ?? "").replaceAll('"', '""')}"`; const csv = [headers, ...rows.map(row => row.map(escape))].map(row => row.join(",")).join("\n"); const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })); const link = Object.assign(document.createElement("a"), { href: url, download: filename }); link.click(); URL.revokeObjectURL(url); }
     function exportRaw() { exportCsv("arduino-accelerometer-raw.csv", ["timestamp","sample_counter","x_g","y_g","z_g"], rawSamples.values().map(s => [new Date(s.timestamp).toISOString(), s.counter, s.x, s.y, s.z])); }
     function exportStats() { const headers = ["timestamp","sample_count","odba_mean_mg","odba_max_mg","vedba_mean_mg","vedba_max_mg","mean_x_mg","mean_y_mg","mean_z_mg","std_x_mg","std_y_mg","std_z_mg","peak_acc_mg_above_1g","activity_flag"]; exportCsv("arduino-accelerometer-statistics.csv", headers, summaries.values().map(s => [new Date(s.timestamp).toISOString(), s.sampleCount, s.odbaMean, s.odbaMax, s.vedbaMean, s.vedbaMax, s.axisStats.x.mean, s.axisStats.y.mean, s.axisStats.z.mean, s.axisStats.x.std, s.axisStats.y.std, s.axisStats.z.std, s.peak, s.flag])); }
-    function exportClassifier() { const headers = ["timestamp","prediction","sample_count","sampling_rate_hz","mag_diff_lag2_meanabs","vedba_diff_lag2_meanabs_prevwin","mag_diff_lag1_meanabs","mag_acf1","mag_mean_cross_prevwin"]; exportCsv("rhino-classifier-windows.csv", headers, classifierResults.values().map(result => [new Date(result.timestamp).toISOString(), result.prediction, result.sampleCount, result.samplingRateHz, result.features.mag_diff_lag2_meanabs, result.features.vedba_diff_lag2_meanabs_prevwin, result.features.mag_diff_lag1_meanabs, result.features.mag_acf1, result.features.mag_mean_cross_prevwin])); }
+    function exportClassifier() { const headers = ["timestamp","prediction","sample_count","sampling_rate_hz","window_duration_s","mag_diff_lag2_meanabs","vedba_diff_lag2_meanabs_prevwin","mag_diff_lag1_meanabs","mag_acf1","mag_mean_cross_prevwin"]; exportCsv("rhino-classifier-windows.csv", headers, classifierResults.values().map(result => [new Date(result.timestamp).toISOString(), result.prediction, result.sampleCount, result.samplingRateHz, result.sampleCount / result.samplingRateHz, result.features.mag_diff_lag2_meanabs, result.features.vedba_diff_lag2_meanabs_prevwin, result.features.mag_diff_lag1_meanabs, result.features.mag_acf1, result.features.mag_mean_cross_prevwin])); }
 
     connectionButton.addEventListener("click", () => device?.gatt.connected ? disconnectBLE() : connectBLE());
     measurementButton.addEventListener("click", () => setMeasuring(!measuring));
