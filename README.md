@@ -29,6 +29,12 @@ ODBA and VeDBA are dynamic body acceleration metrics commonly used as relative m
 
 The firmware remains separate: changes to it must still be compiled and uploaded to the board manually through Arduino IDE.
 
+## Rhino behaviour classifier
+
+The Arduino streams raw triaxial acceleration at 50 Hz as `sample_counter,x,y,z`; it does not classify behaviour. The browser keeps four-second windows (200 samples), calculates the classifier features in real time using a centered three-second static-acceleration mean, and applies the rhino behaviour classifier to label each completed window as `rest`, `fast_locomotion`, `eating`, `walking`, or `other_active`.
+
+The classifier runs entirely in the web app. Updating its thresholds or logic only requires changing and publishing the web files; reflashing the Arduino is required only when the sample format or sample rate changes. This model was trained for rhino accelerometer data and needs validation before use with another species, collar position, or sensor orientation.
+
 ## Updating the Arduino Firmware
 
 Changes committed to GitHub do **not** update the Arduino board automatically. After pulling the latest repository changes, compile and upload the firmware manually:
@@ -43,14 +49,14 @@ Changes committed to GitHub do **not** update the Arduino board automatically. A
 
 ## BLE protocol
 
-The sketch sends a notification every 50 ms (20 Hz) through the following custom GATT characteristic:
+The sketch sends a notification every 20 ms (50 Hz) through the following custom GATT characteristic:
 
 | Item | UUID |
 | --- | --- |
 | Service | `19B10000-E8F2-537E-4F6C-D104768A1214` |
 | Characteristic | `19B10001-E8F2-537E-4F6C-D104768A1214` |
 
-Each notification is UTF-8 text in `x,y,z` format, for example `0.012,-0.034,1.001`. Values are accelerations in g.
+Each notification is UTF-8 text in `sample_counter,x,y,z` format, for example `1234,0.012,-0.034,1.001`. Values are accelerations in g.
 
 ## Project layout
 

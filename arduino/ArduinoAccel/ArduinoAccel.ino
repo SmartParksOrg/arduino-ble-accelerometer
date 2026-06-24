@@ -8,10 +8,10 @@
 
 constexpr char kDeviceName[] = "ArduinoAccel";
 constexpr char kInitialReading[] = "0,0,0";
-constexpr unsigned long kSampleIntervalMs = 50;  // 20 Hz
+constexpr unsigned long kSampleIntervalMs = 20;  // 50 Hz
 
-// "-16.000,-16.000,-16.000" is 23 characters plus the terminating null byte.
-constexpr size_t kAccelPayloadSize = 24;
+// "4294967295,-16.000,-16.000,-16.000" plus the terminating null byte.
+constexpr size_t kAccelPayloadSize = 40;
 
 BLEService accelService("19B10000-E8F2-537E-4F6C-D104768A1214");
 BLECharacteristic accelCharacteristic(
@@ -21,6 +21,7 @@ BLECharacteristic accelCharacteristic(
 );
 
 unsigned long lastSampleMs = 0;
+unsigned long sampleCounter = 0;
 bool wasConnected = false;
 char payload[kAccelPayloadSize];
 
@@ -85,7 +86,7 @@ void loop() {
   float z;
   IMU.readAcceleration(x, y, z);
 
-  const int length = snprintf(payload, sizeof(payload), "%.3f,%.3f,%.3f", x, y, z);
+  const int length = snprintf(payload, sizeof(payload), "%lu,%.3f,%.3f,%.3f", sampleCounter++, x, y, z);
   if (length > 0 && static_cast<size_t>(length) < sizeof(payload)) {
     accelCharacteristic.writeValue(payload);
   }

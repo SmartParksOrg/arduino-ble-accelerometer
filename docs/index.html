@@ -38,6 +38,8 @@
     .legend { display: flex; flex-wrap: wrap; gap: 12px; color: #5b6578; font-size: .84rem; }.legend span::before { display: inline-block; width: 9px; height: 9px; margin-right: 5px; border-radius: 50%; background: var(--color); content: ""; }
     .thresholds { display: grid; grid-template-columns: repeat(3, minmax(140px, 1fr)); gap: 12px; margin: 12px 0 18px; }
     .thresholds input { width: 100%; }.note { font-size: .87rem; line-height: 1.45; margin: 12px 0 0; }
+    .diagnostics { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: .9rem; }.diagnostics th, .diagnostics td { padding: 8px; border-bottom: 1px solid #e6ebf2; text-align: left; }.diagnostics td { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .prediction-log { margin: 12px 0 0; padding-left: 20px; color: #46536a; }.prediction-log li { margin: 5px 0; }.prediction-log time { font-variant-numeric: tabular-nums; }
     @media (max-width: 720px) { .statistics { grid-template-columns: repeat(2, minmax(0, 1fr)); }.thresholds { grid-template-columns: 1fr; } }
     @media (max-width: 460px) { main { width: min(100% - 20px, 1100px); padding-top: 18px; }.controls button { flex: 1 1 140px; }.status { width: 100%; }.readings { gap: 7px; }.stat { padding: 10px; } }
   </style>
@@ -85,6 +87,28 @@
     </section>
 
     <section class="panel">
+      <h2>Rhino behaviour classifier</h2>
+      <div class="statistics">
+        <div class="stat activity"><span class="stat-label">Latest prediction</span><strong id="rhinoPrediction" class="stat-value">Waiting for data</strong></div>
+        <div class="stat"><span class="stat-label">Current window samples</span><strong id="rhinoSampleCount" class="stat-value">0 / 200</strong></div>
+        <div class="stat"><span class="stat-label">Sampling rate estimate</span><strong id="rhinoSampleRate" class="stat-value">—</strong><span class="unit">Hz</span></div>
+      </div>
+      <table class="diagnostics">
+        <thead><tr><th>Feature</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Magnitude difference, lag 2 mean absolute (g)</td><td id="featureMagLag2">—</td></tr>
+          <tr><td>Previous-window VeDBA difference, lag 2 mean absolute (g)</td><td id="featureVedbaLag2">—</td></tr>
+          <tr><td>Magnitude difference, lag 1 mean absolute (g)</td><td id="featureMagLag1">—</td></tr>
+          <tr><td>Magnitude autocorrelation, lag 1</td><td id="featureMagAcf1">—</td></tr>
+          <tr><td>Previous-window magnitude mean crossings</td><td id="featureMeanCross">—</td></tr>
+        </tbody>
+      </table>
+      <h3>Recent predictions</h3>
+      <ol id="predictionLog" class="prediction-log"><li>Waiting for two complete 4-second windows.</li></ol>
+      <p class="note">This classifier was trained for rhino accelerometer data. Do not assume it is valid for another species, collar position, or sensor orientation without validation.</p>
+    </section>
+
+    <section class="panel">
       <h2>Thresholds</h2>
       <div class="thresholds">
         <label>ODBA active (mg)<input id="activeThreshold" type="number" min="0" step="10" value="200" /></label>
@@ -96,11 +120,12 @@
 
     <section class="panel">
       <h2>CSV export</h2>
-      <div class="toolbar"><button id="exportRaw" class="secondary" type="button">Export raw samples</button><button id="exportStats" class="secondary" type="button">Export window statistics</button></div>
+      <div class="toolbar"><button id="exportRaw" class="secondary" type="button">Export raw samples</button><button id="exportStats" class="secondary" type="button">Export motion statistics</button><button id="exportClassifier" class="secondary" type="button">Export classifier windows</button></div>
       <p class="note">Exports contain the current browser session while the measurement buffer has space. ODBA and VeDBA are relative activity proxies; calibrate them for species, tag position, and behaviour before biological quantitative interpretation.</p>
     </section>
   </main>
 
+  <script src="classifier.js"></script>
   <script>
     const serviceUuid = "19b10000-e8f2-537e-4f6c-d104768a1214";
     const characteristicUuid = "19b10001-e8f2-537e-4f6c-d104768a1214";
@@ -120,6 +145,7 @@
     const liveSamples = new RingBuffer(LIVE_POINTS);
     const rawSamples = new RingBuffer(RAW_HISTORY_CAPACITY);
     const summaries = new RingBuffer(SUMMARY_HISTORY_CAPACITY);
+    const classifierResults = new RingBuffer(100);
     const connectionButton = document.getElementById("connectionButton");
     const measurementButton = document.getElementById("measurementButton");
     const statusElement = document.getElementById("connectionStatus");
@@ -128,6 +154,7 @@
     const metricCanvas = document.getElementById("metricChart");
     const contexts = { live: liveCanvas.getContext("2d"), metric: metricCanvas.getContext("2d") };
     let device, characteristic, measuring = false, gravity, lastSummaryTimestamp = 0, currentStats;
+    let rhinoClassifier = new RhinoBehaviourClassifier();
 
     function setStatus(text, state = "") { statusElement.textContent = text; statusElement.className = `status ${state}`; }
     function threshold(id) { return Math.max(0, Number(document.getElementById(id).value) || 0); }
@@ -138,9 +165,15 @@
 
     function resetMeasurement() {
       gravity = undefined; currentStats = undefined; lastSummaryTimestamp = 0;
-      liveSamples.clear(); rawSamples.clear(); summaries.clear();
+      liveSamples.clear(); rawSamples.clear(); summaries.clear(); classifierResults.clear();
+      rhinoClassifier = new RhinoBehaviourClassifier();
       ["x", "y", "z", "odbaMean", "odbaMax", "vedbaMean", "vedbaMax", "peakAcc", "xStats", "yStats", "zStats", "activityFlag"].forEach(id => document.getElementById(id).textContent = "—");
       document.getElementById("sampleCount").textContent = "0";
+      document.getElementById("rhinoPrediction").textContent = "Waiting for data";
+      document.getElementById("rhinoSampleCount").textContent = "0 / 200";
+      document.getElementById("rhinoSampleRate").textContent = "—";
+      ["featureMagLag2", "featureVedbaLag2", "featureMagLag1", "featureMagAcf1", "featureMeanCross"].forEach(id => document.getElementById(id).textContent = "—");
+      document.getElementById("predictionLog").innerHTML = "<li>Waiting for two complete 4-second windows.</li>";
       drawCharts();
     }
 
@@ -174,19 +207,23 @@
 
     function onReading(event) {
       if (!measuring) return;
-      const [x, y, z] = new TextDecoder().decode(event.target.value).split(",").map(Number);
+      const fields = new TextDecoder().decode(event.target.value).split(",").map(Number);
+      const [counter, x, y, z] = fields.length === 4 ? fields : [undefined, ...fields];
       if (![x, y, z].every(Number.isFinite)) return;
       const timestamp = Date.now();
       if (!gravity) gravity = { x, y, z };
       gravity.x += GRAVITY_ALPHA * (x - gravity.x); gravity.y += GRAVITY_ALPHA * (y - gravity.y); gravity.z += GRAVITY_ALPHA * (z - gravity.z);
       // Removing the low-pass gravity estimate leaves dynamic body acceleration.
       const dx = x - gravity.x, dy = y - gravity.y, dz = z - gravity.z;
-      const sample = { timestamp, x, y, z, dx, dy, dz };
+      const sample = { timestamp, counter, x, y, z, dx, dy, dz };
       liveSamples.push(sample); rawSamples.push(sample);
       ["x", "y", "z"].forEach(axis => document.getElementById(axis).textContent = sample[axis].toFixed(3));
       currentStats = calculateStats(rawSamples.valuesSince(timestamp - windowMs()));
       renderStats(currentStats);
       if (timestamp - lastSummaryTimestamp >= 1000) { summaries.push({ timestamp, ...currentStats }); lastSummaryTimestamp = timestamp; }
+      const classifierResult = rhinoClassifier.push(sample);
+      document.getElementById("rhinoSampleCount").textContent = `${Math.min(200, Math.max(0, rhinoClassifier.samples.length - rhinoClassifier.nextWindowStart))} / 200`;
+      if (classifierResult) { classifierResults.push(classifierResult); renderClassifier(classifierResult); }
       drawCharts();
     }
 
@@ -214,6 +251,24 @@
       ["x", "y", "z"].forEach(axis => document.getElementById(`${axis}Stats`).textContent = `${formatMg(stats.axisStats[axis].mean)} / ${formatMg(stats.axisStats[axis].std)}`);
     }
 
+    function renderClassifier(result) {
+      const { features } = result;
+      document.getElementById("rhinoPrediction").textContent = result.prediction.replaceAll("_", " ");
+      document.getElementById("rhinoSampleCount").textContent = `${result.sampleCount} / 200`;
+      document.getElementById("rhinoSampleRate").textContent = result.samplingRateHz.toFixed(1);
+      document.getElementById("featureMagLag2").textContent = features.mag_diff_lag2_meanabs.toFixed(6);
+      document.getElementById("featureVedbaLag2").textContent = features.vedba_diff_lag2_meanabs_prevwin.toFixed(6);
+      document.getElementById("featureMagLag1").textContent = features.mag_diff_lag1_meanabs.toFixed(6);
+      document.getElementById("featureMagAcf1").textContent = features.mag_acf1.toFixed(6);
+      document.getElementById("featureMeanCross").textContent = features.mag_mean_cross_prevwin;
+      const log = document.getElementById("predictionLog");
+      log.replaceChildren(...classifierResults.values().slice(-10).reverse().map(item => {
+        const entry = document.createElement("li");
+        entry.textContent = `${new Date(item.timestamp).toLocaleTimeString()} — ${item.prediction.replaceAll("_", " ")}`;
+        return entry;
+      }));
+    }
+
     function resizeCanvas(canvas, context) { const rect = canvas.getBoundingClientRect(), ratio = devicePixelRatio || 1; canvas.width = Math.round(rect.width * ratio); canvas.height = Math.round(rect.height * ratio); context.setTransform(ratio, 0, 0, ratio, 0, 0); }
     function drawGrid(context, canvas, bound, labels) { const { width, height } = canvas.getBoundingClientRect(), pad = { top: 16, right: 16, bottom: 25, left: 44 }, cw = width - pad.left - pad.right, ch = height - pad.top - pad.bottom; context.clearRect(0, 0, width, height); context.font = "12px system-ui"; context.strokeStyle = "#e6ebf2"; context.fillStyle = "#6b778b"; [-bound, 0, bound].forEach(value => { const y = pad.top + ch / 2 - (value / bound) * ch / 2; context.beginPath(); context.moveTo(pad.left, y); context.lineTo(width - pad.right, y); context.stroke(); context.fillText(labels(value), 3, y + 4); }); return { width, height, pad, cw, ch }; }
     function drawLine(context, data, key, color, geometry, bound) { if (data.length < 2) return; context.beginPath(); context.strokeStyle = color; context.lineWidth = 2; data.forEach((item, index) => { const x = geometry.pad.left + (index / Math.max(1, data.length - 1)) * geometry.cw; const y = geometry.pad.top + geometry.ch / 2 - (item[key] / bound) * geometry.ch / 2; index ? context.lineTo(x, y) : context.moveTo(x, y); }); context.stroke(); }
@@ -222,14 +277,15 @@
     function drawCharts() { drawLiveChart(); drawMetricChart(); }
 
     function exportCsv(filename, headers, rows) { const escape = value => `"${String(value ?? "").replaceAll('"', '""')}"`; const csv = [headers, ...rows.map(row => row.map(escape))].map(row => row.join(",")).join("\n"); const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })); const link = Object.assign(document.createElement("a"), { href: url, download: filename }); link.click(); URL.revokeObjectURL(url); }
-    function exportRaw() { exportCsv("arduino-accelerometer-raw.csv", ["timestamp","x_g","y_g","z_g"], rawSamples.values().map(s => [new Date(s.timestamp).toISOString(), s.x, s.y, s.z])); }
+    function exportRaw() { exportCsv("arduino-accelerometer-raw.csv", ["timestamp","sample_counter","x_g","y_g","z_g"], rawSamples.values().map(s => [new Date(s.timestamp).toISOString(), s.counter, s.x, s.y, s.z])); }
     function exportStats() { const headers = ["timestamp","sample_count","odba_mean_mg","odba_max_mg","vedba_mean_mg","vedba_max_mg","mean_x_mg","mean_y_mg","mean_z_mg","std_x_mg","std_y_mg","std_z_mg","peak_acc_mg_above_1g","activity_flag"]; exportCsv("arduino-accelerometer-statistics.csv", headers, summaries.values().map(s => [new Date(s.timestamp).toISOString(), s.sampleCount, s.odbaMean, s.odbaMax, s.vedbaMean, s.vedbaMax, s.axisStats.x.mean, s.axisStats.y.mean, s.axisStats.z.mean, s.axisStats.x.std, s.axisStats.y.std, s.axisStats.z.std, s.peak, s.flag])); }
+    function exportClassifier() { const headers = ["timestamp","prediction","sample_count","sampling_rate_hz","mag_diff_lag2_meanabs","vedba_diff_lag2_meanabs_prevwin","mag_diff_lag1_meanabs","mag_acf1","mag_mean_cross_prevwin"]; exportCsv("rhino-classifier-windows.csv", headers, classifierResults.values().map(result => [new Date(result.timestamp).toISOString(), result.prediction, result.sampleCount, result.samplingRateHz, result.features.mag_diff_lag2_meanabs, result.features.vedba_diff_lag2_meanabs_prevwin, result.features.mag_diff_lag1_meanabs, result.features.mag_acf1, result.features.mag_mean_cross_prevwin])); }
 
     connectionButton.addEventListener("click", () => device?.gatt.connected ? disconnectBLE() : connectBLE());
     measurementButton.addEventListener("click", () => setMeasuring(!measuring));
     windowLengthInput.addEventListener("change", () => { if (rawSamples.values().length) { currentStats = calculateStats(rawSamples.valuesSince(Date.now() - windowMs())); renderStats(currentStats); drawCharts(); } });
     ["activeThreshold", "stillThreshold", "peakThreshold"].forEach(id => document.getElementById(id).addEventListener("input", () => { if (currentStats?.sampleCount) { currentStats = calculateStats(rawSamples.valuesSince(Date.now() - windowMs())); renderStats(currentStats); } }));
-    document.getElementById("exportRaw").addEventListener("click", exportRaw); document.getElementById("exportStats").addEventListener("click", exportStats);
+    document.getElementById("exportRaw").addEventListener("click", exportRaw); document.getElementById("exportStats").addEventListener("click", exportStats); document.getElementById("exportClassifier").addEventListener("click", exportClassifier);
     new ResizeObserver(() => { resizeCanvas(liveCanvas, contexts.live); resizeCanvas(metricCanvas, contexts.metric); drawCharts(); }).observe(document.querySelector("main"));
   </script>
 </body>
