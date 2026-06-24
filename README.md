@@ -21,6 +21,14 @@ Stream accelerometer readings from an Arduino Nano 33 BLE Sense over Bluetooth L
 5. Serve the `docs` directory from `localhost` (for example, run `python3 -m http.server -d docs 8000`) and open `http://localhost:8000` in Chrome or Edge.
 6. Click **Verbind met Arduino** and select the advertised board.
 
+## Real-time motion statistics
+
+The browser calculates rolling movement statistics from the live BLE samples; the Arduino continues to send only raw X, Y, and Z acceleration. Choose a 2, 5, 10, or 30 second window to view ODBA, VeDBA, axis mean/standard deviation, peak acceleration, and a simple still/active/peak-activity classification. The default window is 5 seconds.
+
+ODBA and VeDBA are dynamic body acceleration metrics commonly used as relative movement/activity proxies in animal biologging. They need calibration for the target species, tag position, and behaviour before biological interpretation. The summary fields are inspired by the [OpenCollar ACC Calculator](https://github.com/SmartParksOrg/opencollar-acc-calculator), but are calculated live in the browser without its power, storage, or runtime model.
+
+The firmware remains separate: changes to it must still be compiled and uploaded to the board manually through Arduino IDE.
+
 ## Updating the Arduino Firmware
 
 Changes committed to GitHub do **not** update the Arduino board automatically. After pulling the latest repository changes, compile and upload the firmware manually:

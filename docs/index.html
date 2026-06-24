@@ -3,201 +3,165 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Arduino Accelerometer BLE</title>
+  <title>Arduino accelerometer</title>
   <style>
-    :root {
-      color-scheme: light;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      color: #172033;
-      background: #f4f7fb;
-    }
-
+    :root { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #172033; background: #f4f7fb; }
     * { box-sizing: border-box; }
-
     body { margin: 0; }
-
-    main {
-      width: min(100% - 32px, 900px);
-      margin: 0 auto;
-      padding: 32px 0;
-    }
-
-    h1 { margin: 0; font-size: clamp(1.65rem, 5vw, 2.4rem); }
-    .subtitle { margin: 8px 0 24px; color: #5b6578; }
-
-    .panel {
-      background: #fff;
-      border: 1px solid #dde4ee;
-      border-radius: 14px;
-      box-shadow: 0 4px 18px rgb(31 45 68 / 7%);
-      padding: clamp(16px, 4vw, 24px);
-    }
-
-    .controls {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 24px;
-    }
-
-    button {
-      appearance: none;
-      min-height: 44px;
-      border: 0;
-      border-radius: 8px;
-      padding: 10px 16px;
-      background: #1359c5;
-      color: #fff;
-      cursor: pointer;
-      font: inherit;
-      font-weight: 650;
-    }
-
+    main { width: min(100% - 28px, 1100px); margin: auto; padding: 28px 0 40px; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { margin-bottom: 6px; font-size: clamp(1.7rem, 5vw, 2.4rem); }
+    h2 { font-size: 1.2rem; margin-bottom: 14px; }
+    .subtitle, .note { color: #5b6578; }
+    .panel { margin-top: 18px; padding: clamp(16px, 3vw, 24px); background: #fff; border: 1px solid #dde4ee; border-radius: 14px; box-shadow: 0 4px 18px rgb(31 45 68 / 7%); }
+    .controls, .toolbar, .section-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    .controls { margin-bottom: 20px; }
+    .section-heading { justify-content: space-between; }
+    .toolbar { margin: 14px 0; }
+    button, select, input { min-height: 42px; border-radius: 8px; font: inherit; }
+    button { border: 0; padding: 9px 14px; background: #1359c5; color: #fff; cursor: pointer; font-weight: 650; }
     button:hover:not(:disabled) { background: #0d469f; }
     button.secondary { background: #e7edf7; color: #1d365d; }
-    button.secondary:hover:not(:disabled) { background: #d9e4f5; }
-    button:disabled { cursor: not-allowed; opacity: .55; }
-
-    .status {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      color: #5b6578;
-      font-size: .95rem;
-    }
-
-    .status::before {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: #8390a4;
-      content: "";
-    }
-
-    .status.connected { color: #17633b; }
-    .status.connected::before { background: #20a95a; }
-    .status.connecting { color: #8a5a00; }
-    .status.connecting::before { background: #e3a008; }
-    .status.error { color: #a62d2d; }
-    .status.error::before { background: #dc3b3b; }
-
-    .readings {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
-      margin-bottom: 24px;
-    }
-
-    .reading {
-      border-left: 4px solid var(--axis-color);
-      border-radius: 8px;
-      background: #f6f8fc;
-      padding: 14px;
-    }
-
-    .reading-label { color: #5b6578; font-size: .875rem; }
-    .reading-value { display: block; margin-top: 3px; font-size: clamp(1.25rem, 4vw, 1.8rem); font-variant-numeric: tabular-nums; font-weight: 700; }
-    .unit { color: #5b6578; font-size: .8rem; }
-
-    .chart-header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-    h2 { margin: 0; font-size: 1.1rem; }
-    .legend { display: flex; flex-wrap: wrap; gap: 12px; color: #5b6578; font-size: .85rem; }
-    .legend span::before { display: inline-block; width: 9px; height: 9px; margin-right: 5px; border-radius: 50%; background: var(--color); content: ""; }
-
-    .chart-wrap { height: clamp(230px, 52vw, 370px); }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    select, input { border: 1px solid #cbd5e1; background: #fff; padding: 7px 9px; color: #172033; }
+    label { display: grid; gap: 4px; color: #46536a; font-size: .85rem; }
+    .status { display: inline-flex; align-items: center; gap: 8px; color: #5b6578; font-size: .94rem; }
+    .status::before { width: 10px; height: 10px; border-radius: 50%; background: #8390a4; content: ""; }
+    .status.connected { color: #17633b; }.status.connected::before { background: #20a95a; }.status.connecting { color: #8a5a00; }.status.connecting::before { background: #e3a008; }.status.error { color: #a62d2d; }.status.error::before { background: #dc3b3b; }
+    .readings, .statistics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .stat { border-left: 4px solid var(--color, #356bd5); border-radius: 8px; background: #f6f8fc; padding: 12px; }
+    .stat-label { display: block; color: #5b6578; font-size: .8rem; }.stat-value { display: block; margin-top: 3px; font-size: clamp(1.1rem, 3vw, 1.55rem); font-weight: 700; font-variant-numeric: tabular-nums; }.unit { color: #5b6578; font-size: .78rem; }
+    .statistics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .activity { --color: #6d45c7; }.activity .stat-value { text-transform: capitalize; }
+    .chart-wrap { height: clamp(220px, 44vw, 340px); margin-top: 10px; }.chart-wrap.small { height: clamp(180px, 35vw, 270px); }
     canvas { display: block; width: 100%; height: 100%; border: 1px solid #dde4ee; border-radius: 8px; background: #fff; }
-
-    @media (max-width: 480px) {
-      main { width: min(100% - 24px, 900px); padding: 20px 0; }
-      .controls { align-items: stretch; }
-      .controls button { flex: 1 1 140px; }
-      .status { width: 100%; }
-      .readings { gap: 8px; }
-      .reading { padding: 10px; }
-    }
+    .legend { display: flex; flex-wrap: wrap; gap: 12px; color: #5b6578; font-size: .84rem; }.legend span::before { display: inline-block; width: 9px; height: 9px; margin-right: 5px; border-radius: 50%; background: var(--color); content: ""; }
+    .thresholds { display: grid; grid-template-columns: repeat(3, minmax(140px, 1fr)); gap: 12px; margin: 12px 0 18px; }
+    .thresholds input { width: 100%; }.note { font-size: .87rem; line-height: 1.45; margin: 12px 0 0; }
+    @media (max-width: 720px) { .statistics { grid-template-columns: repeat(2, minmax(0, 1fr)); }.thresholds { grid-template-columns: 1fr; } }
+    @media (max-width: 460px) { main { width: min(100% - 20px, 1100px); padding-top: 18px; }.controls button { flex: 1 1 140px; }.status { width: 100%; }.readings { gap: 7px; }.stat { padding: 10px; } }
   </style>
 </head>
 <body>
   <main>
     <h1>Arduino accelerometer</h1>
-    <p class="subtitle">Live acceleratiegegevens via Bluetooth Low Energy.</p>
+    <p class="subtitle">Live acceleratiegegevens en bewegingsecologie-statistieken via Bluetooth Low Energy.</p>
 
-    <section class="panel" aria-label="Accelerometerdashboard">
+    <section class="panel">
       <div class="controls">
         <button id="connectionButton" type="button">Verbind met Arduino</button>
         <button id="measurementButton" class="secondary" type="button" disabled>Start meting</button>
         <span id="connectionStatus" class="status" role="status">Niet verbonden</span>
       </div>
-
       <div class="readings" aria-label="Actuele acceleratiewaarden">
-        <div class="reading" style="--axis-color: #e23d4b"><span class="reading-label">X-as</span><strong id="x" class="reading-value">—</strong><span class="unit">g</span></div>
-        <div class="reading" style="--axis-color: #19996a"><span class="reading-label">Y-as</span><strong id="y" class="reading-value">—</strong><span class="unit">g</span></div>
-        <div class="reading" style="--axis-color: #356bd5"><span class="reading-label">Z-as</span><strong id="z" class="reading-value">—</strong><span class="unit">g</span></div>
+        <div class="stat" style="--color:#e23d4b"><span class="stat-label">X-as</span><strong id="x" class="stat-value">—</strong><span class="unit">g</span></div>
+        <div class="stat" style="--color:#19996a"><span class="stat-label">Y-as</span><strong id="y" class="stat-value">—</strong><span class="unit">g</span></div>
+        <div class="stat" style="--color:#356bd5"><span class="stat-label">Z-as</span><strong id="z" class="stat-value">—</strong><span class="unit">g</span></div>
       </div>
+      <div class="section-heading"><h2>Live acceleratie</h2><div class="legend"><span style="--color:#e23d4b">X</span><span style="--color:#19996a">Y</span><span style="--color:#356bd5">Z</span></div></div>
+      <div class="chart-wrap"><canvas id="liveChart" aria-label="Live grafiek met X, Y en Z acceleratie"></canvas></div>
+    </section>
 
-      <div class="chart-header">
-        <h2>Realtime grafiek</h2>
-        <div class="legend" aria-label="Legenda"><span style="--color: #e23d4b">X</span><span style="--color: #19996a">Y</span><span style="--color: #356bd5">Z</span></div>
+    <section class="panel" aria-labelledby="motionTitle">
+      <div class="section-heading"><h2 id="motionTitle">Motion statistics</h2><label>Vensterlengte<select id="windowLength"><option value="2">2 s</option><option value="5" selected>5 s</option><option value="10">10 s</option><option value="30">30 s</option></select></label></div>
+      <div class="statistics" aria-label="Bewegingsstatistieken">
+        <div class="stat" style="--color:#e23d4b"><span class="stat-label">ODBA gemiddeld</span><strong id="odbaMean" class="stat-value">—</strong><span class="unit">mg</span></div>
+        <div class="stat" style="--color:#e23d4b"><span class="stat-label">ODBA maximum</span><strong id="odbaMax" class="stat-value">—</strong><span class="unit">mg</span></div>
+        <div class="stat" style="--color:#19996a"><span class="stat-label">VeDBA gemiddeld</span><strong id="vedbaMean" class="stat-value">—</strong><span class="unit">mg</span></div>
+        <div class="stat" style="--color:#19996a"><span class="stat-label">VeDBA maximum</span><strong id="vedbaMax" class="stat-value">—</strong><span class="unit">mg</span></div>
+        <div class="stat" style="--color:#356bd5"><span class="stat-label">Piekversnelling</span><strong id="peakAcc" class="stat-value">—</strong><span class="unit">mg boven 1 g</span></div>
+        <div class="stat"><span class="stat-label">Aantal monsters</span><strong id="sampleCount" class="stat-value">0</strong></div>
+        <div class="stat activity"><span class="stat-label">Activiteit</span><strong id="activityFlag" class="stat-value">—</strong></div>
       </div>
-      <div class="chart-wrap"><canvas id="chart" aria-label="Grafiek met X-, Y- en Z-acceleratie"></canvas></div>
+      <h3>Asgemiddelde en standaarddeviatie</h3>
+      <div class="statistics">
+        <div class="stat" style="--color:#e23d4b"><span class="stat-label">X gemiddelde / SD</span><strong id="xStats" class="stat-value">—</strong><span class="unit">mg</span></div>
+        <div class="stat" style="--color:#19996a"><span class="stat-label">Y gemiddelde / SD</span><strong id="yStats" class="stat-value">—</strong><span class="unit">mg</span></div>
+        <div class="stat" style="--color:#356bd5"><span class="stat-label">Z gemiddelde / SD</span><strong id="zStats" class="stat-value">—</strong><span class="unit">mg</span></div>
+      </div>
+      <p class="note">ODBA en VeDBA gebruiken de dynamische versnelling nadat per as een low-pass zwaartekrachtfilter (α = 0,01) is toegepast. Het asgemiddelde en de SD zijn gebaseerd op de ruwe venstersamples.</p>
+      <div class="section-heading"><h3>Gemiddelde dynamische versnelling in de tijd</h3><div class="legend"><span style="--color:#e23d4b">ODBA</span><span style="--color:#19996a">VeDBA</span></div></div>
+      <div class="chart-wrap small"><canvas id="metricChart" aria-label="Grafiek met ODBA en VeDBA gemiddeldes"></canvas></div>
+    </section>
+
+    <section class="panel">
+      <h2>Drempelwaarden</h2>
+      <div class="thresholds">
+        <label>ODBA actief (mg)<input id="activeThreshold" type="number" min="0" step="10" value="200" /></label>
+        <label>Stilstand SD (mg)<input id="stillThreshold" type="number" min="0" step="10" value="60" /></label>
+        <label>Piekactiviteit (mg)<input id="peakThreshold" type="number" min="0" step="10" value="600" /></label>
+      </div>
+      <p class="note">Classificatie: <strong>peak activity</strong> bij een piek boven de piekdrempel; <strong>still</strong> wanneer alle as-SD's onder de stilstanddrempel én ODBA onder de actieve drempel blijven; anders <strong>active</strong>. Piekversnelling is de hoogste raw vector magnitude boven de 1 g-zwaartekrachtbaseline.</p>
+    </section>
+
+    <section class="panel">
+      <h2>CSV-export</h2>
+      <div class="toolbar"><button id="exportRaw" class="secondary" type="button">Exporteer ruwe samples</button><button id="exportStats" class="secondary" type="button">Exporteer vensterstatistieken</button></div>
+      <p class="note">De exports bevatten de huidige browser-sessie zolang de meetbuffer ruimte heeft. ODBA en VeDBA zijn relatieve activiteitsproxies; kalibreer ze voor soort, tagpositie en gedrag voordat ze biologisch kwantitatief worden geïnterpreteerd.</p>
     </section>
   </main>
 
   <script>
     const serviceUuid = "19b10000-e8f2-537e-4f6c-d104768a1214";
     const characteristicUuid = "19b10001-e8f2-537e-4f6c-d104768a1214";
-    const maxPoints = 120;
-    const series = { x: [], y: [], z: [] };
-    const colors = { x: "#e23d4b", y: "#19996a", z: "#356bd5" };
+    const GRAVITY_ALPHA = 0.01;
+    const LIVE_POINTS = 120;
+    const RAW_HISTORY_CAPACITY = 12000;
+    const SUMMARY_HISTORY_CAPACITY = 1800;
 
+    class RingBuffer {
+      constructor(capacity) { this.capacity = capacity; this.items = []; }
+      push(item) { if (this.items.length === this.capacity) this.items.shift(); this.items.push(item); }
+      clear() { this.items.length = 0; }
+      valuesSince(timestamp) { return this.items.filter(item => item.timestamp >= timestamp); }
+      values() { return this.items; }
+    }
+
+    const liveSamples = new RingBuffer(LIVE_POINTS);
+    const rawSamples = new RingBuffer(RAW_HISTORY_CAPACITY);
+    const summaries = new RingBuffer(SUMMARY_HISTORY_CAPACITY);
     const connectionButton = document.getElementById("connectionButton");
     const measurementButton = document.getElementById("measurementButton");
     const statusElement = document.getElementById("connectionStatus");
-    const canvas = document.getElementById("chart");
-    const context = canvas.getContext("2d");
-    let device;
-    let characteristic;
-    let measuring = false;
+    const windowLengthInput = document.getElementById("windowLength");
+    const liveCanvas = document.getElementById("liveChart");
+    const metricCanvas = document.getElementById("metricChart");
+    const contexts = { live: liveCanvas.getContext("2d"), metric: metricCanvas.getContext("2d") };
+    let device, characteristic, measuring = false, gravity, lastSummaryTimestamp = 0, currentStats;
 
-    function setStatus(text, state = "") {
-      statusElement.textContent = text;
-      statusElement.className = `status ${state}`;
+    function setStatus(text, state = "") { statusElement.textContent = text; statusElement.className = `status ${state}`; }
+    function threshold(id) { return Math.max(0, Number(document.getElementById(id).value) || 0); }
+    function windowMs() { return Number(windowLengthInput.value) * 1000; }
+    function formatMg(value) { return Number.isFinite(value) ? Math.round(value).toLocaleString("nl-NL") : "—"; }
+    function mean(values) { return values.reduce((sum, value) => sum + value, 0) / values.length; }
+    function standardDeviation(values, average) { return Math.sqrt(values.reduce((sum, value) => sum + (value - average) ** 2, 0) / values.length); }
+
+    function resetMeasurement() {
+      gravity = undefined; currentStats = undefined; lastSummaryTimestamp = 0;
+      liveSamples.clear(); rawSamples.clear(); summaries.clear();
+      ["x", "y", "z", "odbaMean", "odbaMax", "vedbaMean", "vedbaMax", "peakAcc", "xStats", "yStats", "zStats", "activityFlag"].forEach(id => document.getElementById(id).textContent = "—");
+      document.getElementById("sampleCount").textContent = "0";
+      drawCharts();
     }
 
-    function setMeasurementsEnabled(enabled) {
+    function setMeasuring(enabled) {
       measuring = enabled;
       measurementButton.textContent = enabled ? "Stop meting" : "Start meting";
-      if (enabled) {
-        series.x.length = series.y.length = series.z.length = 0;
-        ["x", "y", "z"].forEach(axis => document.getElementById(axis).textContent = "—");
-      }
-      drawChart();
+      if (enabled) resetMeasurement();
     }
 
     async function connectBLE() {
-      if (!navigator.bluetooth) {
-        setStatus("Web Bluetooth wordt niet ondersteund", "error");
-        return;
-      }
-
+      if (!navigator.bluetooth) return setStatus("Web Bluetooth wordt niet ondersteund", "error");
       try {
-        setStatus("Verbinden…", "connecting");
-        connectionButton.disabled = true;
-        device = await navigator.bluetooth.requestDevice({
-          filters: [{ name: "ArduinoAccel" }],
-          optionalServices: [serviceUuid]
-        });
+        setStatus("Verbinden…", "connecting"); connectionButton.disabled = true;
+        device = await navigator.bluetooth.requestDevice({ filters: [{ name: "ArduinoAccel" }], optionalServices: [serviceUuid] });
         device.addEventListener("gattserverdisconnected", onDisconnected);
         const server = await device.gatt.connect();
         const service = await server.getPrimaryService(serviceUuid);
         characteristic = await service.getCharacteristic(characteristicUuid);
         await characteristic.startNotifications();
         characteristic.addEventListener("characteristicvaluechanged", onReading);
-
-        connectionButton.textContent = "Verbinding verbreken";
-        connectionButton.disabled = false;
-        measurementButton.disabled = false;
+        connectionButton.textContent = "Verbinding verbreken"; connectionButton.disabled = false; measurementButton.disabled = false;
         setStatus(`Verbonden met ${device.name || "Arduino"}`, "connected");
       } catch (error) {
         connectionButton.disabled = false;
@@ -205,79 +169,68 @@
       }
     }
 
-    function disconnectBLE() {
-      if (device?.gatt.connected) device.gatt.disconnect();
-    }
-
-    function onDisconnected() {
-      characteristic = undefined;
-      setMeasurementsEnabled(false);
-      measurementButton.disabled = true;
-      connectionButton.textContent = "Verbind met Arduino";
-      connectionButton.disabled = false;
-      setStatus("Verbinding verbroken");
-    }
+    function disconnectBLE() { if (device?.gatt.connected) device.gatt.disconnect(); }
+    function onDisconnected() { characteristic = undefined; measuring = false; measurementButton.textContent = "Start meting"; measurementButton.disabled = true; connectionButton.textContent = "Verbind met Arduino"; connectionButton.disabled = false; setStatus("Verbinding verbroken"); }
 
     function onReading(event) {
       if (!measuring) return;
-      const text = new TextDecoder().decode(event.target.value);
-      const [x, y, z] = text.split(",").map(Number);
+      const [x, y, z] = new TextDecoder().decode(event.target.value).split(",").map(Number);
       if (![x, y, z].every(Number.isFinite)) return;
-
-      Object.entries({ x, y, z }).forEach(([axis, value]) => {
-        series[axis].push(value);
-        if (series[axis].length > maxPoints) series[axis].shift();
-        document.getElementById(axis).textContent = value.toFixed(3);
-      });
-      drawChart();
+      const timestamp = Date.now();
+      if (!gravity) gravity = { x, y, z };
+      gravity.x += GRAVITY_ALPHA * (x - gravity.x); gravity.y += GRAVITY_ALPHA * (y - gravity.y); gravity.z += GRAVITY_ALPHA * (z - gravity.z);
+      // Removing the low-pass gravity estimate leaves dynamic body acceleration.
+      const dx = x - gravity.x, dy = y - gravity.y, dz = z - gravity.z;
+      const sample = { timestamp, x, y, z, dx, dy, dz };
+      liveSamples.push(sample); rawSamples.push(sample);
+      ["x", "y", "z"].forEach(axis => document.getElementById(axis).textContent = sample[axis].toFixed(3));
+      currentStats = calculateStats(rawSamples.valuesSince(timestamp - windowMs()));
+      renderStats(currentStats);
+      if (timestamp - lastSummaryTimestamp >= 1000) { summaries.push({ timestamp, ...currentStats }); lastSummaryTimestamp = timestamp; }
+      drawCharts();
     }
 
-    function resizeCanvas() {
-      const rect = canvas.getBoundingClientRect();
-      const pixelRatio = window.devicePixelRatio || 1;
-      canvas.width = Math.round(rect.width * pixelRatio);
-      canvas.height = Math.round(rect.height * pixelRatio);
-      context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-      drawChart();
+    function calculateStats(samples) {
+      if (!samples.length) return { sampleCount: 0 };
+      const axes = ["x", "y", "z"];
+      const axisStats = Object.fromEntries(axes.map(axis => { const values = samples.map(sample => sample[axis]); const average = mean(values); return [axis, { mean: average * 1000, std: standardDeviation(values, average) * 1000 }]; }));
+      // ODBA and VeDBA are dynamic body acceleration metrics used as movement/activity
+      // proxies in animal biologging. They remain relative proxies until calibrated for
+      // the species, tag position, and behaviours being studied.
+      const odba = samples.map(sample => (Math.abs(sample.dx) + Math.abs(sample.dy) + Math.abs(sample.dz)) * 1000);
+      const vedba = samples.map(sample => Math.hypot(sample.dx, sample.dy, sample.dz) * 1000);
+      const peak = Math.max(...samples.map(sample => Math.max(0, Math.hypot(sample.x, sample.y, sample.z) - 1) * 1000));
+      const odbaMean = mean(odba), maxStd = Math.max(...axes.map(axis => axisStats[axis].std));
+      const flag = peak >= threshold("peakThreshold") ? "peak activity" : maxStd <= threshold("stillThreshold") && odbaMean < threshold("activeThreshold") ? "still" : "active";
+      return { sampleCount: samples.length, axisStats, odbaMean, odbaMax: Math.max(...odba), vedbaMean: mean(vedba), vedbaMax: Math.max(...vedba), peak, flag };
     }
 
-    function drawChart() {
-      const { width, height } = canvas.getBoundingClientRect();
-      if (!width || !height) return;
-      context.clearRect(0, 0, width, height);
-      const padding = { top: 16, right: 16, bottom: 26, left: 42 };
-      const chartWidth = width - padding.left - padding.right;
-      const chartHeight = height - padding.top - padding.bottom;
-      const values = Object.values(series).flat();
-      const bound = Math.max(1.2, ...values.map(value => Math.abs(value) * 1.15));
-
-      context.font = "12px system-ui";
-      context.fillStyle = "#6b778b";
-      context.strokeStyle = "#e6ebf2";
-      context.lineWidth = 1;
-      [-bound, 0, bound].forEach(value => {
-        const y = padding.top + chartHeight / 2 - (value / bound) * chartHeight / 2;
-        context.beginPath(); context.moveTo(padding.left, y); context.lineTo(width - padding.right, y); context.stroke();
-        context.fillText(value.toFixed(1), 4, y + 4);
-      });
-
-      Object.entries(series).forEach(([axis, data]) => {
-        if (data.length < 2) return;
-        context.beginPath();
-        context.strokeStyle = colors[axis];
-        context.lineWidth = 2;
-        data.forEach((value, index) => {
-          const x = padding.left + (index / (maxPoints - 1)) * chartWidth;
-          const y = padding.top + chartHeight / 2 - (value / bound) * chartHeight / 2;
-          index ? context.lineTo(x, y) : context.moveTo(x, y);
-        });
-        context.stroke();
-      });
+    function renderStats(stats) {
+      document.getElementById("sampleCount").textContent = stats.sampleCount;
+      if (!stats.sampleCount) return;
+      document.getElementById("odbaMean").textContent = formatMg(stats.odbaMean); document.getElementById("odbaMax").textContent = formatMg(stats.odbaMax);
+      document.getElementById("vedbaMean").textContent = formatMg(stats.vedbaMean); document.getElementById("vedbaMax").textContent = formatMg(stats.vedbaMax);
+      document.getElementById("peakAcc").textContent = formatMg(stats.peak); document.getElementById("activityFlag").textContent = stats.flag;
+      ["x", "y", "z"].forEach(axis => document.getElementById(`${axis}Stats`).textContent = `${formatMg(stats.axisStats[axis].mean)} / ${formatMg(stats.axisStats[axis].std)}`);
     }
+
+    function resizeCanvas(canvas, context) { const rect = canvas.getBoundingClientRect(), ratio = devicePixelRatio || 1; canvas.width = Math.round(rect.width * ratio); canvas.height = Math.round(rect.height * ratio); context.setTransform(ratio, 0, 0, ratio, 0, 0); }
+    function drawGrid(context, canvas, bound, labels) { const { width, height } = canvas.getBoundingClientRect(), pad = { top: 16, right: 16, bottom: 25, left: 44 }, cw = width - pad.left - pad.right, ch = height - pad.top - pad.bottom; context.clearRect(0, 0, width, height); context.font = "12px system-ui"; context.strokeStyle = "#e6ebf2"; context.fillStyle = "#6b778b"; [-bound, 0, bound].forEach(value => { const y = pad.top + ch / 2 - (value / bound) * ch / 2; context.beginPath(); context.moveTo(pad.left, y); context.lineTo(width - pad.right, y); context.stroke(); context.fillText(labels(value), 3, y + 4); }); return { width, height, pad, cw, ch }; }
+    function drawLine(context, data, key, color, geometry, bound) { if (data.length < 2) return; context.beginPath(); context.strokeStyle = color; context.lineWidth = 2; data.forEach((item, index) => { const x = geometry.pad.left + (index / Math.max(1, data.length - 1)) * geometry.cw; const y = geometry.pad.top + geometry.ch / 2 - (item[key] / bound) * geometry.ch / 2; index ? context.lineTo(x, y) : context.moveTo(x, y); }); context.stroke(); }
+    function drawLiveChart() { const samples = liveSamples.values(), values = samples.flatMap(sample => [sample.x, sample.y, sample.z]), bound = Math.max(1.2, ...values.map(value => Math.abs(value) * 1.15)); const g = drawGrid(contexts.live, liveCanvas, bound, value => value.toFixed(1)); drawLine(contexts.live, samples, "x", "#e23d4b", g, bound); drawLine(contexts.live, samples, "y", "#19996a", g, bound); drawLine(contexts.live, samples, "z", "#356bd5", g, bound); }
+    function drawMetricChart() { const data = summaries.values(), values = data.flatMap(item => [item.odbaMean || 0, item.vedbaMean || 0]), bound = Math.max(100, ...values.map(value => value * 1.15)); const g = drawGrid(contexts.metric, metricCanvas, bound, value => `${Math.round(value)} mg`); drawLine(contexts.metric, data, "odbaMean", "#e23d4b", g, bound); drawLine(contexts.metric, data, "vedbaMean", "#19996a", g, bound); }
+    function drawCharts() { drawLiveChart(); drawMetricChart(); }
+
+    function exportCsv(filename, headers, rows) { const escape = value => `"${String(value ?? "").replaceAll('"', '""')}"`; const csv = [headers, ...rows.map(row => row.map(escape))].map(row => row.join(",")).join("\n"); const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })); const link = Object.assign(document.createElement("a"), { href: url, download: filename }); link.click(); URL.revokeObjectURL(url); }
+    function exportRaw() { exportCsv("arduino-accelerometer-raw.csv", ["timestamp","x_g","y_g","z_g"], rawSamples.values().map(s => [new Date(s.timestamp).toISOString(), s.x, s.y, s.z])); }
+    function exportStats() { const headers = ["timestamp","sample_count","odba_mean_mg","odba_max_mg","vedba_mean_mg","vedba_max_mg","mean_x_mg","mean_y_mg","mean_z_mg","std_x_mg","std_y_mg","std_z_mg","peak_acc_mg_above_1g","activity_flag"]; exportCsv("arduino-accelerometer-statistics.csv", headers, summaries.values().map(s => [new Date(s.timestamp).toISOString(), s.sampleCount, s.odbaMean, s.odbaMax, s.vedbaMean, s.vedbaMax, s.axisStats.x.mean, s.axisStats.y.mean, s.axisStats.z.mean, s.axisStats.x.std, s.axisStats.y.std, s.axisStats.z.std, s.peak, s.flag])); }
 
     connectionButton.addEventListener("click", () => device?.gatt.connected ? disconnectBLE() : connectBLE());
-    measurementButton.addEventListener("click", () => setMeasurementsEnabled(!measuring));
-    new ResizeObserver(resizeCanvas).observe(canvas);
+    measurementButton.addEventListener("click", () => setMeasuring(!measuring));
+    windowLengthInput.addEventListener("change", () => { if (rawSamples.values().length) { currentStats = calculateStats(rawSamples.valuesSince(Date.now() - windowMs())); renderStats(currentStats); drawCharts(); } });
+    ["activeThreshold", "stillThreshold", "peakThreshold"].forEach(id => document.getElementById(id).addEventListener("input", () => { if (currentStats?.sampleCount) { currentStats = calculateStats(rawSamples.valuesSince(Date.now() - windowMs())); renderStats(currentStats); } }));
+    document.getElementById("exportRaw").addEventListener("click", exportRaw); document.getElementById("exportStats").addEventListener("click", exportStats);
+    new ResizeObserver(() => { resizeCanvas(liveCanvas, contexts.live); resizeCanvas(metricCanvas, contexts.metric); drawCharts(); }).observe(document.querySelector("main"));
   </script>
 </body>
 </html>
