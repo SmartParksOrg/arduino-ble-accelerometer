@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <title>Arduino Accelerometer BLE</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 40px;
+      max-width: 700px;
+    }
+    button {
+      font-size: 18px;
+      padding: 10px 16px;
+    }
+    .value {
+      font-size: 28px;
+      margin: 12px 0;
+    }
+    canvas {
+      border: 1px solid #ccc;
+      width: 100%;
+      height: 250px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Arduino accelerometer live</h1>
+
+  <button onclick="connectBLE()">Verbind met Arduino</button>
+
+  <div class="value">X: <span id="x">-</span></div>
+  <div class="value">Y: <span id="y">-</span></div>
+  <div class="value">Z: <span id="z">-</span></div>
+
+  <canvas id="chart" width="700" height="250"></canvas>
+
+  <script>
+    const serviceUuid = "19b10000-e8f2-537e-4f6c-d104768a1214";
+    const characteristicUuid = "19b10001-e8f2-537e-4f6c-d104768a1214";
+
+    const maxPoints = 100;
+    const dataX = [];
+    const dataY = [];
+    const dataZ = [];
+
+    async function connectBLE() {
+      const device = await navigator.bluetooth.requestDevice({
+        filters: [{ name: "ArduinoAccel" }],
+        optionalServices: [serviceUuid]
+      });
+
+      const server = await device.gatt.connect();
+      const service = await server.getPrimaryService(serviceUuid);
+      const characteristic = await service.getCharacteristic(characteristicUuid);
+
+      await characteristic.startNotifications();
+
+      characteristic.addEventListener("characteristicvaluechanged", event => {
+        const decoder = new TextDecoder();
+        const text = decoder.decode(event.target.value);
+        const [x, y, z] = text.split(",").map(Number);
+
+        document.getElementById("x").textContent = x.toFixed(3);
+        document.getElementById("y").textContent = y.toFixed(3);
+        document.getElementById("z").textContent = z.toFixed(3);
+
+        addPoint(dataX, x);
+        addPoint(dataY, y);
+        addPoint(dataZ, z);
+
+        drawChart();
+      });
+    }
+
+    function addPoint(arr, value) {
+      arr.push(value);
+      if (arr.length > maxPoints) arr.shift();
+    }
+
+    function drawChart() {
+      const canvas = document.getElementById("chart");
+      const ctx = canvas.getContext("2d");
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      drawLine(ctx, dataX, "red");
+      drawLine(ctx, dataY, "green");
+      drawLine(ctx, dataZ, "blue");
+    }
+
+    function drawLine(ctx, data, color) {
+      if (data.length < 2) return;
+
+      const w = ctx.canvas.width;
+      const h = ctx.canvas.height;
+      const scale = 60;
+      const centerY = h / 2;
+
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+
+      data.forEach((v, i) => {
+        const x = (i / (maxPoints - 1)) * w;
+        const y = centerY - v * scale;
+
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+
+      ctx.stroke();
+    }
+  </script>
+</body>
+</html>
