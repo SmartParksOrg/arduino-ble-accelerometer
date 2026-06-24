@@ -6,68 +6,87 @@
 // Voor Nano 33 BLE Sense Rev2 gebruik deze in plaats van bovenstaande:
 // #include <Arduino_BMI270_BMM150.h>
 
-BLEService accelService("19B10000-E8F2-537E-4F6C-D104768A1214");
+constexpr char kDeviceName[] = "ArduinoAccel";
+constexpr char kInitialReading[] = "0,0,0";
+constexpr unsigned long kSampleIntervalMs = 50;  // 20 Hz
 
+// "-16.000,-16.000,-16.000" is 23 characters plus the terminating null byte.
+constexpr size_t kAccelPayloadSize = 24;
+
+BLEService accelService("19B10000-E8F2-537E-4F6C-D104768A1214");
 BLECharacteristic accelCharacteristic(
   "19B10001-E8F2-537E-4F6C-D104768A1214",
   BLERead | BLENotify,
-  64
+  kAccelPayloadSize
 );
 
-unsigned long lastSample = 0;
-const int sampleIntervalMs = 50; // 20 Hz
+unsigned long lastSampleMs = 0;
+bool wasConnected = false;
+char payload[kAccelPayloadSize];
 
 void setup() {
   Serial.begin(115200);
-  delay(1000);
 
   if (!IMU.begin()) {
-    Serial.println("IMU niet gevonden");
-    while (1);
+    Serial.println(F("IMU niet gevonden"));
+    while (true) {
+    }
   }
 
   if (!BLE.begin()) {
-    Serial.println("BLE start mislukt");
-    while (1);
+    Serial.println(F("BLE start mislukt"));
+    while (true) {
+    }
   }
 
-  BLE.setLocalName("ArduinoAccel");
+  BLE.setLocalName(kDeviceName);
   BLE.setAdvertisedService(accelService);
-
   accelService.addCharacteristic(accelCharacteristic);
   BLE.addService(accelService);
-
-  accelCharacteristic.writeValue("0,0,0");
-
+  accelCharacteristic.writeValue(kInitialReading);
   BLE.advertise();
-  Serial.println("BLE actief: ArduinoAccel");
+
+  Serial.println(F("BLE actief: ArduinoAccel"));
 }
 
 void loop() {
+  // Keep the BLE stack responsive even while no central is connected.
+  BLE.poll();
+
   BLEDevice central = BLE.central();
+  const bool connected = central && central.connected();
 
-  if (central) {
-    Serial.print("Verbonden met: ");
-    Serial.println(central.address());
-
-    while (central.connected()) {
-      if (millis() - lastSample >= sampleIntervalMs) {
-        lastSample = millis();
-
-        float x, y, z;
-
-        if (IMU.accelerationAvailable()) {
-          IMU.readAcceleration(x, y, z);
-
-          char data[64];
-          snprintf(data, sizeof(data), "%.3f,%.3f,%.3f", x, y, z);
-
-          accelCharacteristic.writeValue(data);
-          Serial.println(data);
-        }
-      }
+  if (!connected) {
+    if (wasConnected) {
+      Serial.println(F("Verbinding verbroken"));
     }
+    wasConnected = false;
+    return;
+  }
 
-    Serial.println("Verbinding verbroken");
+  if (!wasConnected) {
+    Serial.print(F("Verbonden met: "));
+    Serial.println(central.address());
+    wasConnected = true;
+  }
+
+  const unsigned long now = millis();
+  if (now - lastSampleMs < kSampleIntervalMs || !accelCharacteristic.subscribed()) {
+    return;
+  }
+  lastSampleMs = now;
+
+  if (!IMU.accelerationAvailable()) {
+    return;
+  }
+
+  float x;
+  float y;
+  float z;
+  IMU.readAcceleration(x, y, z);
+
+  const int length = snprintf(payload, sizeof(payload), "%.3f,%.3f,%.3f", x, y, z);
+  if (length > 0 && static_cast<size_t>(length) < sizeof(payload)) {
+    accelCharacteristic.writeValue(payload);
   }
 }
