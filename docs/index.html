@@ -2,115 +2,282 @@
 <html lang="nl">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Arduino Accelerometer BLE</title>
   <style>
-    body {
-      font-family: system-ui, sans-serif;
-      margin: 40px;
-      max-width: 700px;
+    :root {
+      color-scheme: light;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #172033;
+      background: #f4f7fb;
     }
+
+    * { box-sizing: border-box; }
+
+    body { margin: 0; }
+
+    main {
+      width: min(100% - 32px, 900px);
+      margin: 0 auto;
+      padding: 32px 0;
+    }
+
+    h1 { margin: 0; font-size: clamp(1.65rem, 5vw, 2.4rem); }
+    .subtitle { margin: 8px 0 24px; color: #5b6578; }
+
+    .panel {
+      background: #fff;
+      border: 1px solid #dde4ee;
+      border-radius: 14px;
+      box-shadow: 0 4px 18px rgb(31 45 68 / 7%);
+      padding: clamp(16px, 4vw, 24px);
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
     button {
-      font-size: 18px;
+      appearance: none;
+      min-height: 44px;
+      border: 0;
+      border-radius: 8px;
       padding: 10px 16px;
+      background: #1359c5;
+      color: #fff;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 650;
     }
-    .value {
-      font-size: 28px;
-      margin: 12px 0;
+
+    button:hover:not(:disabled) { background: #0d469f; }
+    button.secondary { background: #e7edf7; color: #1d365d; }
+    button.secondary:hover:not(:disabled) { background: #d9e4f5; }
+    button:disabled { cursor: not-allowed; opacity: .55; }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #5b6578;
+      font-size: .95rem;
     }
-    canvas {
-      border: 1px solid #ccc;
-      width: 100%;
-      height: 250px;
+
+    .status::before {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #8390a4;
+      content: "";
+    }
+
+    .status.connected { color: #17633b; }
+    .status.connected::before { background: #20a95a; }
+    .status.connecting { color: #8a5a00; }
+    .status.connecting::before { background: #e3a008; }
+    .status.error { color: #a62d2d; }
+    .status.error::before { background: #dc3b3b; }
+
+    .readings {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .reading {
+      border-left: 4px solid var(--axis-color);
+      border-radius: 8px;
+      background: #f6f8fc;
+      padding: 14px;
+    }
+
+    .reading-label { color: #5b6578; font-size: .875rem; }
+    .reading-value { display: block; margin-top: 3px; font-size: clamp(1.25rem, 4vw, 1.8rem); font-variant-numeric: tabular-nums; font-weight: 700; }
+    .unit { color: #5b6578; font-size: .8rem; }
+
+    .chart-header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    h2 { margin: 0; font-size: 1.1rem; }
+    .legend { display: flex; flex-wrap: wrap; gap: 12px; color: #5b6578; font-size: .85rem; }
+    .legend span::before { display: inline-block; width: 9px; height: 9px; margin-right: 5px; border-radius: 50%; background: var(--color); content: ""; }
+
+    .chart-wrap { height: clamp(230px, 52vw, 370px); }
+    canvas { display: block; width: 100%; height: 100%; border: 1px solid #dde4ee; border-radius: 8px; background: #fff; }
+
+    @media (max-width: 480px) {
+      main { width: min(100% - 24px, 900px); padding: 20px 0; }
+      .controls { align-items: stretch; }
+      .controls button { flex: 1 1 140px; }
+      .status { width: 100%; }
+      .readings { gap: 8px; }
+      .reading { padding: 10px; }
     }
   </style>
 </head>
 <body>
-  <h1>Arduino accelerometer live</h1>
+  <main>
+    <h1>Arduino accelerometer</h1>
+    <p class="subtitle">Live acceleratiegegevens via Bluetooth Low Energy.</p>
 
-  <button onclick="connectBLE()">Verbind met Arduino</button>
+    <section class="panel" aria-label="Accelerometerdashboard">
+      <div class="controls">
+        <button id="connectionButton" type="button">Verbind met Arduino</button>
+        <button id="measurementButton" class="secondary" type="button" disabled>Start meting</button>
+        <span id="connectionStatus" class="status" role="status">Niet verbonden</span>
+      </div>
 
-  <div class="value">X: <span id="x">-</span></div>
-  <div class="value">Y: <span id="y">-</span></div>
-  <div class="value">Z: <span id="z">-</span></div>
+      <div class="readings" aria-label="Actuele acceleratiewaarden">
+        <div class="reading" style="--axis-color: #e23d4b"><span class="reading-label">X-as</span><strong id="x" class="reading-value">—</strong><span class="unit">g</span></div>
+        <div class="reading" style="--axis-color: #19996a"><span class="reading-label">Y-as</span><strong id="y" class="reading-value">—</strong><span class="unit">g</span></div>
+        <div class="reading" style="--axis-color: #356bd5"><span class="reading-label">Z-as</span><strong id="z" class="reading-value">—</strong><span class="unit">g</span></div>
+      </div>
 
-  <canvas id="chart" width="700" height="250"></canvas>
+      <div class="chart-header">
+        <h2>Realtime grafiek</h2>
+        <div class="legend" aria-label="Legenda"><span style="--color: #e23d4b">X</span><span style="--color: #19996a">Y</span><span style="--color: #356bd5">Z</span></div>
+      </div>
+      <div class="chart-wrap"><canvas id="chart" aria-label="Grafiek met X-, Y- en Z-acceleratie"></canvas></div>
+    </section>
+  </main>
 
   <script>
     const serviceUuid = "19b10000-e8f2-537e-4f6c-d104768a1214";
     const characteristicUuid = "19b10001-e8f2-537e-4f6c-d104768a1214";
+    const maxPoints = 120;
+    const series = { x: [], y: [], z: [] };
+    const colors = { x: "#e23d4b", y: "#19996a", z: "#356bd5" };
 
-    const maxPoints = 100;
-    const dataX = [];
-    const dataY = [];
-    const dataZ = [];
+    const connectionButton = document.getElementById("connectionButton");
+    const measurementButton = document.getElementById("measurementButton");
+    const statusElement = document.getElementById("connectionStatus");
+    const canvas = document.getElementById("chart");
+    const context = canvas.getContext("2d");
+    let device;
+    let characteristic;
+    let measuring = false;
 
-    async function connectBLE() {
-      const device = await navigator.bluetooth.requestDevice({
-        filters: [{ name: "ArduinoAccel" }],
-        optionalServices: [serviceUuid]
-      });
-
-      const server = await device.gatt.connect();
-      const service = await server.getPrimaryService(serviceUuid);
-      const characteristic = await service.getCharacteristic(characteristicUuid);
-
-      await characteristic.startNotifications();
-
-      characteristic.addEventListener("characteristicvaluechanged", event => {
-        const decoder = new TextDecoder();
-        const text = decoder.decode(event.target.value);
-        const [x, y, z] = text.split(",").map(Number);
-
-        document.getElementById("x").textContent = x.toFixed(3);
-        document.getElementById("y").textContent = y.toFixed(3);
-        document.getElementById("z").textContent = z.toFixed(3);
-
-        addPoint(dataX, x);
-        addPoint(dataY, y);
-        addPoint(dataZ, z);
-
-        drawChart();
-      });
+    function setStatus(text, state = "") {
+      statusElement.textContent = text;
+      statusElement.className = `status ${state}`;
     }
 
-    function addPoint(arr, value) {
-      arr.push(value);
-      if (arr.length > maxPoints) arr.shift();
+    function setMeasurementsEnabled(enabled) {
+      measuring = enabled;
+      measurementButton.textContent = enabled ? "Stop meting" : "Start meting";
+      if (enabled) {
+        series.x.length = series.y.length = series.z.length = 0;
+        ["x", "y", "z"].forEach(axis => document.getElementById(axis).textContent = "—");
+      }
+      drawChart();
+    }
+
+    async function connectBLE() {
+      if (!navigator.bluetooth) {
+        setStatus("Web Bluetooth wordt niet ondersteund", "error");
+        return;
+      }
+
+      try {
+        setStatus("Verbinden…", "connecting");
+        connectionButton.disabled = true;
+        device = await navigator.bluetooth.requestDevice({
+          filters: [{ name: "ArduinoAccel" }],
+          optionalServices: [serviceUuid]
+        });
+        device.addEventListener("gattserverdisconnected", onDisconnected);
+        const server = await device.gatt.connect();
+        const service = await server.getPrimaryService(serviceUuid);
+        characteristic = await service.getCharacteristic(characteristicUuid);
+        await characteristic.startNotifications();
+        characteristic.addEventListener("characteristicvaluechanged", onReading);
+
+        connectionButton.textContent = "Verbinding verbreken";
+        connectionButton.disabled = false;
+        measurementButton.disabled = false;
+        setStatus(`Verbonden met ${device.name || "Arduino"}`, "connected");
+      } catch (error) {
+        connectionButton.disabled = false;
+        setStatus(error.name === "NotFoundError" ? "Geen apparaat geselecteerd" : "Verbinden mislukt", "error");
+      }
+    }
+
+    function disconnectBLE() {
+      if (device?.gatt.connected) device.gatt.disconnect();
+    }
+
+    function onDisconnected() {
+      characteristic = undefined;
+      setMeasurementsEnabled(false);
+      measurementButton.disabled = true;
+      connectionButton.textContent = "Verbind met Arduino";
+      connectionButton.disabled = false;
+      setStatus("Verbinding verbroken");
+    }
+
+    function onReading(event) {
+      if (!measuring) return;
+      const text = new TextDecoder().decode(event.target.value);
+      const [x, y, z] = text.split(",").map(Number);
+      if (![x, y, z].every(Number.isFinite)) return;
+
+      Object.entries({ x, y, z }).forEach(([axis, value]) => {
+        series[axis].push(value);
+        if (series[axis].length > maxPoints) series[axis].shift();
+        document.getElementById(axis).textContent = value.toFixed(3);
+      });
+      drawChart();
+    }
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const pixelRatio = window.devicePixelRatio || 1;
+      canvas.width = Math.round(rect.width * pixelRatio);
+      canvas.height = Math.round(rect.height * pixelRatio);
+      context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      drawChart();
     }
 
     function drawChart() {
-      const canvas = document.getElementById("chart");
-      const ctx = canvas.getContext("2d");
+      const { width, height } = canvas.getBoundingClientRect();
+      if (!width || !height) return;
+      context.clearRect(0, 0, width, height);
+      const padding = { top: 16, right: 16, bottom: 26, left: 42 };
+      const chartWidth = width - padding.left - padding.right;
+      const chartHeight = height - padding.top - padding.bottom;
+      const values = Object.values(series).flat();
+      const bound = Math.max(1.2, ...values.map(value => Math.abs(value) * 1.15));
 
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      drawLine(ctx, dataX, "red");
-      drawLine(ctx, dataY, "green");
-      drawLine(ctx, dataZ, "blue");
-    }
-
-    function drawLine(ctx, data, color) {
-      if (data.length < 2) return;
-
-      const w = ctx.canvas.width;
-      const h = ctx.canvas.height;
-      const scale = 60;
-      const centerY = h / 2;
-
-      ctx.beginPath();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-
-      data.forEach((v, i) => {
-        const x = (i / (maxPoints - 1)) * w;
-        const y = centerY - v * scale;
-
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+      context.font = "12px system-ui";
+      context.fillStyle = "#6b778b";
+      context.strokeStyle = "#e6ebf2";
+      context.lineWidth = 1;
+      [-bound, 0, bound].forEach(value => {
+        const y = padding.top + chartHeight / 2 - (value / bound) * chartHeight / 2;
+        context.beginPath(); context.moveTo(padding.left, y); context.lineTo(width - padding.right, y); context.stroke();
+        context.fillText(value.toFixed(1), 4, y + 4);
       });
 
-      ctx.stroke();
+      Object.entries(series).forEach(([axis, data]) => {
+        if (data.length < 2) return;
+        context.beginPath();
+        context.strokeStyle = colors[axis];
+        context.lineWidth = 2;
+        data.forEach((value, index) => {
+          const x = padding.left + (index / (maxPoints - 1)) * chartWidth;
+          const y = padding.top + chartHeight / 2 - (value / bound) * chartHeight / 2;
+          index ? context.lineTo(x, y) : context.moveTo(x, y);
+        });
+        context.stroke();
+      });
     }
+
+    connectionButton.addEventListener("click", () => device?.gatt.connected ? disconnectBLE() : connectBLE());
+    measurementButton.addEventListener("click", () => setMeasurementsEnabled(!measuring));
+    new ResizeObserver(resizeCanvas).observe(canvas);
   </script>
 </body>
 </html>
