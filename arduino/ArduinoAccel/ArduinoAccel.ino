@@ -1,9 +1,9 @@
 #include <ArduinoBLE.h>
 
-// Voor originele Nano 33 BLE Sense:
+// For the original Nano 33 BLE Sense:
 #include <Arduino_LSM9DS1.h>
 
-// Voor Nano 33 BLE Sense Rev2 gebruik deze in plaats van bovenstaande:
+// For the Nano 33 BLE Sense Rev2, use this instead of the include above:
 // #include <Arduino_BMI270_BMM150.h>
 
 constexpr char kDeviceName[] = "ArduinoAccel";
@@ -28,13 +28,13 @@ void setup() {
   Serial.begin(115200);
 
   if (!IMU.begin()) {
-    Serial.println(F("IMU niet gevonden"));
+    Serial.println(F("IMU not found"));
     while (true) {
     }
   }
 
   if (!BLE.begin()) {
-    Serial.println(F("BLE start mislukt"));
+    Serial.println(F("BLE start failed"));
     while (true) {
     }
   }
@@ -46,7 +46,7 @@ void setup() {
   accelCharacteristic.writeValue(kInitialReading);
   BLE.advertise();
 
-  Serial.println(F("BLE actief: ArduinoAccel"));
+  Serial.println(F("BLE active: ArduinoAccel"));
 }
 
 void loop() {
@@ -58,14 +58,14 @@ void loop() {
 
   if (!connected) {
     if (wasConnected) {
-      Serial.println(F("Verbinding verbroken"));
+      Serial.println(F("Connection disconnected"));
     }
     wasConnected = false;
     return;
   }
 
   if (!wasConnected) {
-    Serial.print(F("Verbonden met: "));
+    Serial.print(F("Connected to: "));
     Serial.println(central.address());
     wasConnected = true;
   }

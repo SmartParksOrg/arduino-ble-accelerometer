@@ -19,7 +19,7 @@ Stream accelerometer readings from an Arduino Nano 33 BLE Sense over Bluetooth L
 3. For a Rev2 board, replace the `Arduino_LSM9DS1` include with the commented `Arduino_BMI270_BMM150` include in the sketch.
 4. Upload the sketch. The board advertises as `ArduinoAccel`.
 5. Serve the `docs` directory from `localhost` (for example, run `python3 -m http.server -d docs 8000`) and open `http://localhost:8000` in Chrome or Edge.
-6. Click **Verbind met Arduino** and select the advertised board.
+6. Click **Connect to Arduino** and select the advertised board.
 
 ## Real-time motion statistics
 

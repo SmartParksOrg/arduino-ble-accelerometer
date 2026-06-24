@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -45,59 +45,59 @@
 <body>
   <main>
     <h1>Arduino accelerometer</h1>
-    <p class="subtitle">Live acceleratiegegevens en bewegingsecologie-statistieken via Bluetooth Low Energy.</p>
+    <p class="subtitle">Live acceleration data and movement-ecology statistics via Bluetooth Low Energy.</p>
 
     <section class="panel">
       <div class="controls">
-        <button id="connectionButton" type="button">Verbind met Arduino</button>
-        <button id="measurementButton" class="secondary" type="button" disabled>Start meting</button>
-        <span id="connectionStatus" class="status" role="status">Niet verbonden</span>
+        <button id="connectionButton" type="button">Connect to Arduino</button>
+        <button id="measurementButton" class="secondary" type="button" disabled>Start measurement</button>
+        <span id="connectionStatus" class="status" role="status">Not connected</span>
       </div>
-      <div class="readings" aria-label="Actuele acceleratiewaarden">
-        <div class="stat" style="--color:#e23d4b"><span class="stat-label">X-as</span><strong id="x" class="stat-value">—</strong><span class="unit">g</span></div>
-        <div class="stat" style="--color:#19996a"><span class="stat-label">Y-as</span><strong id="y" class="stat-value">—</strong><span class="unit">g</span></div>
-        <div class="stat" style="--color:#356bd5"><span class="stat-label">Z-as</span><strong id="z" class="stat-value">—</strong><span class="unit">g</span></div>
+      <div class="readings" aria-label="Current acceleration values">
+        <div class="stat" style="--color:#e23d4b"><span class="stat-label">X axis</span><strong id="x" class="stat-value">—</strong><span class="unit">g</span></div>
+        <div class="stat" style="--color:#19996a"><span class="stat-label">Y axis</span><strong id="y" class="stat-value">—</strong><span class="unit">g</span></div>
+        <div class="stat" style="--color:#356bd5"><span class="stat-label">Z axis</span><strong id="z" class="stat-value">—</strong><span class="unit">g</span></div>
       </div>
-      <div class="section-heading"><h2>Live acceleratie</h2><div class="legend"><span style="--color:#e23d4b">X</span><span style="--color:#19996a">Y</span><span style="--color:#356bd5">Z</span></div></div>
-      <div class="chart-wrap"><canvas id="liveChart" aria-label="Live grafiek met X, Y en Z acceleratie"></canvas></div>
+      <div class="section-heading"><h2>Live acceleration</h2><div class="legend"><span style="--color:#e23d4b">X</span><span style="--color:#19996a">Y</span><span style="--color:#356bd5">Z</span></div></div>
+      <div class="chart-wrap"><canvas id="liveChart" aria-label="Live chart of X, Y, and Z acceleration"></canvas></div>
     </section>
 
     <section class="panel" aria-labelledby="motionTitle">
-      <div class="section-heading"><h2 id="motionTitle">Motion statistics</h2><label>Vensterlengte<select id="windowLength"><option value="2">2 s</option><option value="5" selected>5 s</option><option value="10">10 s</option><option value="30">30 s</option></select></label></div>
-      <div class="statistics" aria-label="Bewegingsstatistieken">
-        <div class="stat" style="--color:#e23d4b"><span class="stat-label">ODBA gemiddeld</span><strong id="odbaMean" class="stat-value">—</strong><span class="unit">mg</span></div>
+      <div class="section-heading"><h2 id="motionTitle">Motion statistics</h2><label>Window length<select id="windowLength"><option value="2">2 s</option><option value="5" selected>5 s</option><option value="10">10 s</option><option value="30">30 s</option></select></label></div>
+      <div class="statistics" aria-label="Motion statistics">
+        <div class="stat" style="--color:#e23d4b"><span class="stat-label">ODBA mean</span><strong id="odbaMean" class="stat-value">—</strong><span class="unit">mg</span></div>
         <div class="stat" style="--color:#e23d4b"><span class="stat-label">ODBA maximum</span><strong id="odbaMax" class="stat-value">—</strong><span class="unit">mg</span></div>
-        <div class="stat" style="--color:#19996a"><span class="stat-label">VeDBA gemiddeld</span><strong id="vedbaMean" class="stat-value">—</strong><span class="unit">mg</span></div>
+        <div class="stat" style="--color:#19996a"><span class="stat-label">VeDBA mean</span><strong id="vedbaMean" class="stat-value">—</strong><span class="unit">mg</span></div>
         <div class="stat" style="--color:#19996a"><span class="stat-label">VeDBA maximum</span><strong id="vedbaMax" class="stat-value">—</strong><span class="unit">mg</span></div>
-        <div class="stat" style="--color:#356bd5"><span class="stat-label">Piekversnelling</span><strong id="peakAcc" class="stat-value">—</strong><span class="unit">mg boven 1 g</span></div>
-        <div class="stat"><span class="stat-label">Aantal monsters</span><strong id="sampleCount" class="stat-value">0</strong></div>
-        <div class="stat activity"><span class="stat-label">Activiteit</span><strong id="activityFlag" class="stat-value">—</strong></div>
+        <div class="stat" style="--color:#356bd5"><span class="stat-label">Peak acceleration</span><strong id="peakAcc" class="stat-value">—</strong><span class="unit">mg above 1 g</span></div>
+        <div class="stat"><span class="stat-label">Sample count</span><strong id="sampleCount" class="stat-value">0</strong></div>
+        <div class="stat activity"><span class="stat-label">Activity</span><strong id="activityFlag" class="stat-value">—</strong></div>
       </div>
-      <h3>Asgemiddelde en standaarddeviatie</h3>
+      <h3>Axis mean and standard deviation</h3>
       <div class="statistics">
-        <div class="stat" style="--color:#e23d4b"><span class="stat-label">X gemiddelde / SD</span><strong id="xStats" class="stat-value">—</strong><span class="unit">mg</span></div>
-        <div class="stat" style="--color:#19996a"><span class="stat-label">Y gemiddelde / SD</span><strong id="yStats" class="stat-value">—</strong><span class="unit">mg</span></div>
-        <div class="stat" style="--color:#356bd5"><span class="stat-label">Z gemiddelde / SD</span><strong id="zStats" class="stat-value">—</strong><span class="unit">mg</span></div>
+        <div class="stat" style="--color:#e23d4b"><span class="stat-label">X mean / SD</span><strong id="xStats" class="stat-value">—</strong><span class="unit">mg</span></div>
+        <div class="stat" style="--color:#19996a"><span class="stat-label">Y mean / SD</span><strong id="yStats" class="stat-value">—</strong><span class="unit">mg</span></div>
+        <div class="stat" style="--color:#356bd5"><span class="stat-label">Z mean / SD</span><strong id="zStats" class="stat-value">—</strong><span class="unit">mg</span></div>
       </div>
-      <p class="note">ODBA en VeDBA gebruiken de dynamische versnelling nadat per as een low-pass zwaartekrachtfilter (α = 0,01) is toegepast. Het asgemiddelde en de SD zijn gebaseerd op de ruwe venstersamples.</p>
-      <div class="section-heading"><h3>Gemiddelde dynamische versnelling in de tijd</h3><div class="legend"><span style="--color:#e23d4b">ODBA</span><span style="--color:#19996a">VeDBA</span></div></div>
-      <div class="chart-wrap small"><canvas id="metricChart" aria-label="Grafiek met ODBA en VeDBA gemiddeldes"></canvas></div>
+      <p class="note">ODBA and VeDBA use dynamic acceleration after applying a low-pass gravity filter (α = 0.01) to each axis. Axis means and SDs use the raw samples in the window.</p>
+      <div class="section-heading"><h3>Mean dynamic acceleration over time</h3><div class="legend"><span style="--color:#e23d4b">ODBA</span><span style="--color:#19996a">VeDBA</span></div></div>
+      <div class="chart-wrap small"><canvas id="metricChart" aria-label="Chart of mean ODBA and VeDBA"></canvas></div>
     </section>
 
     <section class="panel">
-      <h2>Drempelwaarden</h2>
+      <h2>Thresholds</h2>
       <div class="thresholds">
-        <label>ODBA actief (mg)<input id="activeThreshold" type="number" min="0" step="10" value="200" /></label>
-        <label>Stilstand SD (mg)<input id="stillThreshold" type="number" min="0" step="10" value="60" /></label>
-        <label>Piekactiviteit (mg)<input id="peakThreshold" type="number" min="0" step="10" value="600" /></label>
+        <label>ODBA active (mg)<input id="activeThreshold" type="number" min="0" step="10" value="200" /></label>
+        <label>Stillness SD (mg)<input id="stillThreshold" type="number" min="0" step="10" value="60" /></label>
+        <label>Peak activity (mg)<input id="peakThreshold" type="number" min="0" step="10" value="600" /></label>
       </div>
-      <p class="note">Classificatie: <strong>peak activity</strong> bij een piek boven de piekdrempel; <strong>still</strong> wanneer alle as-SD's onder de stilstanddrempel én ODBA onder de actieve drempel blijven; anders <strong>active</strong>. Piekversnelling is de hoogste raw vector magnitude boven de 1 g-zwaartekrachtbaseline.</p>
+      <p class="note">Classification: <strong>peak activity</strong> when a peak exceeds the peak threshold; <strong>still</strong> when all axis SDs stay below the stillness threshold and ODBA stays below the active threshold; otherwise <strong>active</strong>. Peak acceleration is the highest raw vector magnitude above the 1 g gravity baseline.</p>
     </section>
 
     <section class="panel">
-      <h2>CSV-export</h2>
-      <div class="toolbar"><button id="exportRaw" class="secondary" type="button">Exporteer ruwe samples</button><button id="exportStats" class="secondary" type="button">Exporteer vensterstatistieken</button></div>
-      <p class="note">De exports bevatten de huidige browser-sessie zolang de meetbuffer ruimte heeft. ODBA en VeDBA zijn relatieve activiteitsproxies; kalibreer ze voor soort, tagpositie en gedrag voordat ze biologisch kwantitatief worden geïnterpreteerd.</p>
+      <h2>CSV export</h2>
+      <div class="toolbar"><button id="exportRaw" class="secondary" type="button">Export raw samples</button><button id="exportStats" class="secondary" type="button">Export window statistics</button></div>
+      <p class="note">Exports contain the current browser session while the measurement buffer has space. ODBA and VeDBA are relative activity proxies; calibrate them for species, tag position, and behaviour before biological quantitative interpretation.</p>
     </section>
   </main>
 
@@ -132,7 +132,7 @@
     function setStatus(text, state = "") { statusElement.textContent = text; statusElement.className = `status ${state}`; }
     function threshold(id) { return Math.max(0, Number(document.getElementById(id).value) || 0); }
     function windowMs() { return Number(windowLengthInput.value) * 1000; }
-    function formatMg(value) { return Number.isFinite(value) ? Math.round(value).toLocaleString("nl-NL") : "—"; }
+    function formatMg(value) { return Number.isFinite(value) ? Math.round(value).toLocaleString("en-US") : "—"; }
     function mean(values) { return values.reduce((sum, value) => sum + value, 0) / values.length; }
     function standardDeviation(values, average) { return Math.sqrt(values.reduce((sum, value) => sum + (value - average) ** 2, 0) / values.length); }
 
@@ -146,14 +146,14 @@
 
     function setMeasuring(enabled) {
       measuring = enabled;
-      measurementButton.textContent = enabled ? "Stop meting" : "Start meting";
+      measurementButton.textContent = enabled ? "Stop measurement" : "Start measurement";
       if (enabled) resetMeasurement();
     }
 
     async function connectBLE() {
-      if (!navigator.bluetooth) return setStatus("Web Bluetooth wordt niet ondersteund", "error");
+      if (!navigator.bluetooth) return setStatus("Web Bluetooth is not supported", "error");
       try {
-        setStatus("Verbinden…", "connecting"); connectionButton.disabled = true;
+        setStatus("Connecting…", "connecting"); connectionButton.disabled = true;
         device = await navigator.bluetooth.requestDevice({ filters: [{ name: "ArduinoAccel" }], optionalServices: [serviceUuid] });
         device.addEventListener("gattserverdisconnected", onDisconnected);
         const server = await device.gatt.connect();
@@ -161,16 +161,16 @@
         characteristic = await service.getCharacteristic(characteristicUuid);
         await characteristic.startNotifications();
         characteristic.addEventListener("characteristicvaluechanged", onReading);
-        connectionButton.textContent = "Verbinding verbreken"; connectionButton.disabled = false; measurementButton.disabled = false;
-        setStatus(`Verbonden met ${device.name || "Arduino"}`, "connected");
+        connectionButton.textContent = "Disconnect"; connectionButton.disabled = false; measurementButton.disabled = false;
+        setStatus(`Connected to ${device.name || "Arduino"}`, "connected");
       } catch (error) {
         connectionButton.disabled = false;
-        setStatus(error.name === "NotFoundError" ? "Geen apparaat geselecteerd" : "Verbinden mislukt", "error");
+        setStatus(error.name === "NotFoundError" ? "No device selected" : "Connection failed", "error");
       }
     }
 
     function disconnectBLE() { if (device?.gatt.connected) device.gatt.disconnect(); }
-    function onDisconnected() { characteristic = undefined; measuring = false; measurementButton.textContent = "Start meting"; measurementButton.disabled = true; connectionButton.textContent = "Verbind met Arduino"; connectionButton.disabled = false; setStatus("Verbinding verbroken"); }
+    function onDisconnected() { characteristic = undefined; measuring = false; measurementButton.textContent = "Start measurement"; measurementButton.disabled = true; connectionButton.textContent = "Connect to Arduino"; connectionButton.disabled = false; setStatus("Connection disconnected"); }
 
     function onReading(event) {
       if (!measuring) return;
