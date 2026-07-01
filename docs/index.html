@@ -163,11 +163,11 @@
     function mean(values) { return values.reduce((sum, value) => sum + value, 0) / values.length; }
     function standardDeviation(values, average) { return Math.sqrt(values.reduce((sum, value) => sum + (value - average) ** 2, 0) / values.length); }
     function formatBehaviour(behaviour) { return behaviour.replaceAll("_", " "); }
-    function selectedClassifierModel() { return RHINO_CLASSIFIER_MODELS.find(model => model.id === classifierModelInput.value) || RHINO_CLASSIFIER_MODELS[0]; }
+    function selectedClassifierModel() { return CLASSIFIER_MODELS.find(model => model.id === classifierModelInput.value) || CLASSIFIER_MODELS[0]; }
 
     function populateClassifierModels() {
-      classifierModelInput.replaceChildren(...RHINO_CLASSIFIER_MODELS.map(model => new Option(model.label, model.id)));
-      classifierModelInput.value = RHINO_CLASSIFIER_MODELS[0].id;
+      classifierModelInput.replaceChildren(...CLASSIFIER_MODELS.map(model => new Option(model.label, model.id)));
+      classifierModelInput.value = selectedClassifierModel().id;
     }
 
     function resetClassifierSession() {

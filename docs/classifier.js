@@ -5,7 +5,7 @@
  * and after each point. Windows are therefore finalised 1.5 seconds after
  * their final sample arrives. No model calculation is performed on the tag.
  */
-const RHINO_CLASSIFIER_MODELS = [
+const CLASSIFIER_MODELS = [
   {
     id: "rhino-v2",
     label: "Rhino behaviour v2 (latest)",
@@ -43,7 +43,7 @@ const RHINO_CLASSIFIER_MODELS = [
 ];
 
 class RhinoBehaviourClassifier {
-  constructor(model = RHINO_CLASSIFIER_MODELS[0]) {
+  constructor(model = CLASSIFIER_MODELS[0]) {
     this.model = model;
     this.sampleRate = model.sampleRate;
     this.windowSize = model.sampleRate * model.windowSeconds;
