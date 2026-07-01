@@ -33,6 +33,8 @@ The firmware remains separate: changes to it must still be compiled and uploaded
 
 The Arduino streams raw triaxial acceleration at 50 Hz as `sample_counter,x,y,z`; it does not classify behaviour. The browser keeps four-second windows (200 samples), calculates the classifier features in real time using a centered three-second static-acceleration mean, and applies the rhino behaviour classifier to label each completed window as `rest`, `fast_locomotion`, `eating`, `walking`, or `other_active`.
 
+Classifier versions are defined in `docs/classifier.js` and shown in the classifier dropdown. To add a new version, add another model object to `RHINO_CLASSIFIER_MODELS` with an `id`, `label`, class list, feature definitions, feature extractor, and `predict(features)` function.
+
 The classifier runs entirely in the web app. Updating its thresholds or logic only requires changing and publishing the web files; reflashing the Arduino is required only when the sample format or sample rate changes. This model was trained for rhino accelerometer data and needs validation before use with another species, collar position, or sensor orientation.
 
 ## Updating the Arduino Firmware

@@ -5,11 +5,49 @@
  * and after each point. Windows are therefore finalised 1.5 seconds after
  * their final sample arrives. No model calculation is performed on the tag.
  */
+const RHINO_CLASSIFIER_MODELS = [
+  {
+    id: "rhino-v2",
+    label: "Rhino behaviour v2 (latest)",
+    sampleRate: 50,
+    windowSeconds: 4,
+    staticSeconds: 3,
+    classes: ["rest", "fast_locomotion", "eating", "walking", "other_active"],
+    features: rhinoFeatureDefinitions(),
+    extractFeatures: extractRhinoFeatures,
+    predict(features) {
+      if (features.mag_diff_lag2_meanabs < 0.01570 || features.vedba_diff_lag2_meanabs_prevwin < 0.00552) return "rest";
+      if (features.mag_diff_lag1_meanabs >= 0.08431 && features.mag_acf1 >= 0.77) return "fast_locomotion";
+      if (features.mag_acf1 < 0.85472) return "eating";
+      if (features.mag_acf1 >= 0.86386 && features.mag_mean_cross_prevwin < 34.5) return "walking";
+      return "other_active";
+    }
+  },
+  {
+    id: "rhino-v1",
+    label: "Rhino behaviour v1",
+    sampleRate: 50,
+    windowSeconds: 4,
+    staticSeconds: 3,
+    classes: ["rest", "fast_locomotion", "eating", "walking", "other_active"],
+    features: rhinoFeatureDefinitions(),
+    extractFeatures: extractRhinoFeatures,
+    predict(features) {
+      if (features.mag_diff_lag2_meanabs < 0.01566581 || features.vedba_diff_lag2_meanabs_prevwin < 0.005286459) return "rest";
+      if (features.mag_diff_lag1_meanabs >= 0.07809337 && features.mag_acf1 >= 0.75) return "fast_locomotion";
+      if (features.mag_acf1 < 0.8206652) return "eating";
+      if (features.mag_acf1 >= 0.8728767 && features.mag_mean_cross_prevwin < 32.4) return "walking";
+      return "other_active";
+    }
+  }
+];
+
 class RhinoBehaviourClassifier {
-  constructor({ sampleRate = 50, windowSeconds = 4, staticSeconds = 3 } = {}) {
-    this.sampleRate = sampleRate;
-    this.windowSize = sampleRate * windowSeconds;
-    this.staticWindowSize = sampleRate * staticSeconds;
+  constructor(model = RHINO_CLASSIFIER_MODELS[0]) {
+    this.model = model;
+    this.sampleRate = model.sampleRate;
+    this.windowSize = model.sampleRate * model.windowSeconds;
+    this.staticWindowSize = model.sampleRate * model.staticSeconds;
     // A 150-sample mean has its centre between two samples: use 75 samples
     // before and 74 after the target sample, for an exact 150-sample window.
     this.staticSamplesBefore = Math.floor(this.staticWindowSize / 2);
@@ -50,21 +88,18 @@ class RhinoBehaviourClassifier {
   }
 
   classify(current, previous) {
-    const features = {
-      mag_diff_lag2_meanabs: meanAbsoluteLagDifference(current, "mag", 2),
-      vedba_diff_lag2_meanabs_prevwin: meanAbsoluteLagDifference(previous, "vedba", 2),
-      mag_diff_lag1_meanabs: meanAbsoluteLagDifference(current, "mag", 1),
-      mag_acf1: lagOneCorrelation(current.map(sample => sample.mag)),
-      mag_mean_cross_prevwin: meanCrossings(previous.map(sample => sample.mag))
-    };
-    const prediction = predictRhinoBehaviour(features);
+    const features = this.model.extractFeatures(current, previous);
+    const prediction = this.model.predict(features);
     const first = current[0];
     const last = current.at(-1);
     return {
       timestamp: last.timestamp,
+      classifierId: this.model.id,
+      classifierName: this.model.label,
       prediction,
       sampleCount: current.length,
       samplingRateHz: estimateSampleRate(first, last),
+      featureDefinitions: this.model.features,
       features
     };
   }
@@ -76,6 +111,26 @@ class RhinoBehaviourClassifier {
     this.samples.splice(0, discard);
     this.nextWindowStart -= discard;
   }
+}
+
+function rhinoFeatureDefinitions() {
+  return [
+    { key: "mag_diff_lag2_meanabs", label: "Magnitude difference, lag 2 mean absolute (g)", decimals: 6 },
+    { key: "vedba_diff_lag2_meanabs_prevwin", label: "Previous-window VeDBA difference, lag 2 mean absolute (g)", decimals: 6 },
+    { key: "mag_diff_lag1_meanabs", label: "Magnitude difference, lag 1 mean absolute (g)", decimals: 6 },
+    { key: "mag_acf1", label: "Magnitude autocorrelation, lag 1", decimals: 6 },
+    { key: "mag_mean_cross_prevwin", label: "Previous-window magnitude mean crossings", decimals: 0 }
+  ];
+}
+
+function extractRhinoFeatures(current, previous) {
+  return {
+    mag_diff_lag2_meanabs: meanAbsoluteLagDifference(current, "mag", 2),
+    vedba_diff_lag2_meanabs_prevwin: meanAbsoluteLagDifference(previous, "vedba", 2),
+    mag_diff_lag1_meanabs: meanAbsoluteLagDifference(current, "mag", 1),
+    mag_acf1: lagOneCorrelation(current.map(sample => sample.mag)),
+    mag_mean_cross_prevwin: meanCrossings(previous.map(sample => sample.mag))
+  };
 }
 
 function meanAbsoluteLagDifference(samples, key, lag) {
@@ -115,12 +170,4 @@ function estimateSampleRate(first, last) {
   const elapsedSeconds = (last.timestamp - first.timestamp) / 1000;
   const sampleSteps = Number.isFinite(first.counter) && Number.isFinite(last.counter) ? last.counter - first.counter : 199;
   return elapsedSeconds > 0 ? sampleSteps / elapsedSeconds : 0;
-}
-
-function predictRhinoBehaviour(features) {
-  if (features.mag_diff_lag2_meanabs < 0.01566581 || features.vedba_diff_lag2_meanabs_prevwin < 0.005286459) return "rest";
-  if (features.mag_diff_lag1_meanabs >= 0.07809337 && features.mag_acf1 >= 0.75) return "fast_locomotion";
-  if (features.mag_acf1 < 0.8206652) return "eating";
-  if (features.mag_acf1 >= 0.8728767 && features.mag_mean_cross_prevwin < 32.4) return "walking";
-  return "other_active";
 }

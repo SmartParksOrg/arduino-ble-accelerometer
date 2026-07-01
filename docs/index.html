@@ -88,7 +88,7 @@
     </section>
 
     <section class="panel">
-      <h2>Rhino behaviour classifier</h2>
+      <div class="section-heading"><h2>Rhino behaviour classifier</h2><label>Classifier<select id="classifierModel"></select></label></div>
       <div class="statistics">
         <div class="stat activity"><span class="stat-label">Latest prediction</span><strong id="rhinoPrediction" class="stat-value">Waiting for data</strong></div>
         <div class="stat"><span class="stat-label">Current window samples</span><strong id="rhinoSampleCount" class="stat-value">0 / 200</strong></div>
@@ -96,24 +96,12 @@
       </div>
       <table class="diagnostics">
         <thead><tr><th>Feature</th><th>Value</th></tr></thead>
-        <tbody>
-          <tr><td>Magnitude difference, lag 2 mean absolute (g)</td><td id="featureMagLag2">—</td></tr>
-          <tr><td>Previous-window VeDBA difference, lag 2 mean absolute (g)</td><td id="featureVedbaLag2">—</td></tr>
-          <tr><td>Magnitude difference, lag 1 mean absolute (g)</td><td id="featureMagLag1">—</td></tr>
-          <tr><td>Magnitude autocorrelation, lag 1</td><td id="featureMagAcf1">—</td></tr>
-          <tr><td>Previous-window magnitude mean crossings</td><td id="featureMeanCross">—</td></tr>
-        </tbody>
+        <tbody id="classifierFeatureRows"></tbody>
       </table>
       <h3>Recent predictions</h3>
       <ol id="predictionLog" class="prediction-log"><li>Waiting for two complete 4-second windows.</li></ol>
       <h3>Cumulative behaviour time</h3>
-      <div class="behaviour-time" aria-label="Cumulative classifier time for this session">
-        <div class="stat" style="--color:#718096"><span class="stat-label">Rest</span><strong id="timeRest" class="stat-value">0:00</strong></div>
-        <div class="stat" style="--color:#2b8a3e"><span class="stat-label">Walking</span><strong id="timeWalking" class="stat-value">0:00</strong></div>
-        <div class="stat" style="--color:#d97706"><span class="stat-label">Eating</span><strong id="timeEating" class="stat-value">0:00</strong></div>
-        <div class="stat" style="--color:#c2410c"><span class="stat-label">Fast locomotion</span><strong id="timeFastLocomotion" class="stat-value">0:00</strong></div>
-        <div class="stat" style="--color:#6d45c7"><span class="stat-label">Other active</span><strong id="timeOtherActive" class="stat-value">0:00</strong></div>
-      </div>
+      <div id="behaviourTime" class="behaviour-time" aria-label="Cumulative classifier time for this session"></div>
       <p class="note">This classifier was trained for rhino accelerometer data. Do not assume it is valid for another species, collar position, or sensor orientation without validation.</p>
     </section>
 
@@ -159,12 +147,14 @@
     const measurementButton = document.getElementById("measurementButton");
     const statusElement = document.getElementById("connectionStatus");
     const windowLengthInput = document.getElementById("windowLength");
+    const classifierModelInput = document.getElementById("classifierModel");
     const liveCanvas = document.getElementById("liveChart");
     const metricCanvas = document.getElementById("metricChart");
     const contexts = { live: liveCanvas.getContext("2d"), metric: metricCanvas.getContext("2d") };
-    const behaviourDurations = { rest: 0, walking: 0, eating: 0, fast_locomotion: 0, other_active: 0 };
+    const behaviourColors = { rest: "#718096", walking: "#2b8a3e", eating: "#d97706", fast_locomotion: "#c2410c", other_active: "#6d45c7" };
+    let behaviourDurations = {};
     let device, characteristic, measuring = false, gravity, lastSummaryTimestamp = 0, currentStats;
-    let rhinoClassifier = new RhinoBehaviourClassifier();
+    let rhinoClassifier = new RhinoBehaviourClassifier(selectedClassifierModel());
 
     function setStatus(text, state = "") { statusElement.textContent = text; statusElement.className = `status ${state}`; }
     function threshold(id) { return Math.max(0, Number(document.getElementById(id).value) || 0); }
@@ -172,20 +162,50 @@
     function formatMg(value) { return Number.isFinite(value) ? Math.round(value).toLocaleString("en-US") : "—"; }
     function mean(values) { return values.reduce((sum, value) => sum + value, 0) / values.length; }
     function standardDeviation(values, average) { return Math.sqrt(values.reduce((sum, value) => sum + (value - average) ** 2, 0) / values.length); }
+    function formatBehaviour(behaviour) { return behaviour.replaceAll("_", " "); }
+    function selectedClassifierModel() { return RHINO_CLASSIFIER_MODELS.find(model => model.id === classifierModelInput.value) || RHINO_CLASSIFIER_MODELS[0]; }
+
+    function populateClassifierModels() {
+      classifierModelInput.replaceChildren(...RHINO_CLASSIFIER_MODELS.map(model => new Option(model.label, model.id)));
+      classifierModelInput.value = RHINO_CLASSIFIER_MODELS[0].id;
+    }
+
+    function resetClassifierSession() {
+      const model = selectedClassifierModel();
+      classifierResults.clear();
+      rhinoClassifier = new RhinoBehaviourClassifier(model);
+      behaviourDurations = Object.fromEntries(model.classes.map(behaviour => [behaviour, 0]));
+      renderFeatureRows(model);
+      document.getElementById("rhinoPrediction").textContent = "Waiting for data";
+      document.getElementById("rhinoSampleCount").textContent = `0 / ${rhinoClassifier.windowSize}`;
+      document.getElementById("rhinoSampleRate").textContent = "—";
+      document.getElementById("predictionLog").innerHTML = "<li>Waiting for two complete classifier windows.</li>";
+      renderBehaviourDurations();
+    }
+
+    function renderFeatureRows(model) {
+      document.getElementById("classifierFeatureRows").replaceChildren(...model.features.map(feature => {
+        const row = document.createElement("tr");
+        const label = document.createElement("td");
+        label.textContent = feature.label;
+        const value = document.createElement("td");
+        value.dataset.feature = feature.key;
+        value.textContent = "—";
+        row.append(label, value);
+        return row;
+      }));
+    }
+
+    function featureValueCell(key) {
+      return [...document.querySelectorAll("[data-feature]")].find(cell => cell.dataset.feature === key);
+    }
 
     function resetMeasurement() {
       gravity = undefined; currentStats = undefined; lastSummaryTimestamp = 0;
-      liveSamples.clear(); rawSamples.clear(); summaries.clear(); classifierResults.clear();
-      rhinoClassifier = new RhinoBehaviourClassifier();
+      liveSamples.clear(); rawSamples.clear(); summaries.clear();
+      resetClassifierSession();
       ["x", "y", "z", "odbaMean", "odbaMax", "vedbaMean", "vedbaMax", "peakAcc", "xStats", "yStats", "zStats", "activityFlag"].forEach(id => document.getElementById(id).textContent = "—");
       document.getElementById("sampleCount").textContent = "0";
-      document.getElementById("rhinoPrediction").textContent = "Waiting for data";
-      document.getElementById("rhinoSampleCount").textContent = "0 / 200";
-      document.getElementById("rhinoSampleRate").textContent = "—";
-      ["featureMagLag2", "featureVedbaLag2", "featureMagLag1", "featureMagAcf1", "featureMeanCross"].forEach(id => document.getElementById(id).textContent = "—");
-      document.getElementById("predictionLog").innerHTML = "<li>Waiting for two complete 4-second windows.</li>";
-      Object.keys(behaviourDurations).forEach(behaviour => behaviourDurations[behaviour] = 0);
-      renderBehaviourDurations();
       drawCharts();
     }
 
@@ -234,7 +254,7 @@
       renderStats(currentStats);
       if (timestamp - lastSummaryTimestamp >= 1000) { summaries.push({ timestamp, ...currentStats }); lastSummaryTimestamp = timestamp; }
       const classifierResult = rhinoClassifier.push(sample);
-      document.getElementById("rhinoSampleCount").textContent = `${Math.min(200, Math.max(0, rhinoClassifier.samples.length - rhinoClassifier.nextWindowStart))} / 200`;
+      document.getElementById("rhinoSampleCount").textContent = `${Math.min(rhinoClassifier.windowSize, Math.max(0, rhinoClassifier.samples.length - rhinoClassifier.nextWindowStart))} / ${rhinoClassifier.windowSize}`;
       if (classifierResult) { classifierResults.push(classifierResult); renderClassifier(classifierResult); }
       drawCharts();
     }
@@ -265,19 +285,19 @@
 
     function renderClassifier(result) {
       const { features } = result;
-      behaviourDurations[result.prediction] += result.sampleCount / result.samplingRateHz;
-      document.getElementById("rhinoPrediction").textContent = result.prediction.replaceAll("_", " ");
-      document.getElementById("rhinoSampleCount").textContent = `${result.sampleCount} / 200`;
+      behaviourDurations[result.prediction] = (behaviourDurations[result.prediction] || 0) + result.sampleCount / result.samplingRateHz;
+      document.getElementById("rhinoPrediction").textContent = formatBehaviour(result.prediction);
+      document.getElementById("rhinoSampleCount").textContent = `${result.sampleCount} / ${rhinoClassifier.windowSize}`;
       document.getElementById("rhinoSampleRate").textContent = result.samplingRateHz.toFixed(1);
-      document.getElementById("featureMagLag2").textContent = features.mag_diff_lag2_meanabs.toFixed(6);
-      document.getElementById("featureVedbaLag2").textContent = features.vedba_diff_lag2_meanabs_prevwin.toFixed(6);
-      document.getElementById("featureMagLag1").textContent = features.mag_diff_lag1_meanabs.toFixed(6);
-      document.getElementById("featureMagAcf1").textContent = features.mag_acf1.toFixed(6);
-      document.getElementById("featureMeanCross").textContent = features.mag_mean_cross_prevwin;
+      result.featureDefinitions.forEach(feature => {
+        const value = features[feature.key];
+        const cell = featureValueCell(feature.key);
+        if (cell) cell.textContent = Number.isFinite(value) ? value.toFixed(feature.decimals ?? 6) : "—";
+      });
       const log = document.getElementById("predictionLog");
       log.replaceChildren(...classifierResults.values().slice(-10).reverse().map(item => {
         const entry = document.createElement("li");
-        entry.textContent = `${new Date(item.timestamp).toLocaleTimeString()} — ${item.prediction.replaceAll("_", " ")}`;
+        entry.textContent = `${new Date(item.timestamp).toLocaleTimeString()} — ${formatBehaviour(item.prediction)}`;
         return entry;
       }));
       renderBehaviourDurations();
@@ -289,11 +309,20 @@
     }
 
     function renderBehaviourDurations() {
-      document.getElementById("timeRest").textContent = formatDuration(behaviourDurations.rest);
-      document.getElementById("timeWalking").textContent = formatDuration(behaviourDurations.walking);
-      document.getElementById("timeEating").textContent = formatDuration(behaviourDurations.eating);
-      document.getElementById("timeFastLocomotion").textContent = formatDuration(behaviourDurations.fast_locomotion);
-      document.getElementById("timeOtherActive").textContent = formatDuration(behaviourDurations.other_active);
+      const model = selectedClassifierModel();
+      document.getElementById("behaviourTime").replaceChildren(...model.classes.map(behaviour => {
+        const card = document.createElement("div");
+        card.className = "stat";
+        card.style.setProperty("--color", behaviourColors[behaviour] || "#356bd5");
+        const label = document.createElement("span");
+        label.className = "stat-label";
+        label.textContent = formatBehaviour(behaviour);
+        const value = document.createElement("strong");
+        value.className = "stat-value";
+        value.textContent = formatDuration(behaviourDurations[behaviour] || 0);
+        card.append(label, value);
+        return card;
+      }));
     }
 
     function resizeCanvas(canvas, context) { const rect = canvas.getBoundingClientRect(), ratio = devicePixelRatio || 1; canvas.width = Math.round(rect.width * ratio); canvas.height = Math.round(rect.height * ratio); context.setTransform(ratio, 0, 0, ratio, 0, 0); }
@@ -306,13 +335,16 @@
     function exportCsv(filename, headers, rows) { const escape = value => `"${String(value ?? "").replaceAll('"', '""')}"`; const csv = [headers, ...rows.map(row => row.map(escape))].map(row => row.join(",")).join("\n"); const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })); const link = Object.assign(document.createElement("a"), { href: url, download: filename }); link.click(); URL.revokeObjectURL(url); }
     function exportRaw() { exportCsv("arduino-accelerometer-raw.csv", ["timestamp","sample_counter","x_g","y_g","z_g"], rawSamples.values().map(s => [new Date(s.timestamp).toISOString(), s.counter, s.x, s.y, s.z])); }
     function exportStats() { const headers = ["timestamp","sample_count","odba_mean_mg","odba_max_mg","vedba_mean_mg","vedba_max_mg","mean_x_mg","mean_y_mg","mean_z_mg","std_x_mg","std_y_mg","std_z_mg","peak_acc_mg_above_1g","activity_flag"]; exportCsv("arduino-accelerometer-statistics.csv", headers, summaries.values().map(s => [new Date(s.timestamp).toISOString(), s.sampleCount, s.odbaMean, s.odbaMax, s.vedbaMean, s.vedbaMax, s.axisStats.x.mean, s.axisStats.y.mean, s.axisStats.z.mean, s.axisStats.x.std, s.axisStats.y.std, s.axisStats.z.std, s.peak, s.flag])); }
-    function exportClassifier() { const headers = ["timestamp","prediction","sample_count","sampling_rate_hz","window_duration_s","mag_diff_lag2_meanabs","vedba_diff_lag2_meanabs_prevwin","mag_diff_lag1_meanabs","mag_acf1","mag_mean_cross_prevwin"]; exportCsv("rhino-classifier-windows.csv", headers, classifierResults.values().map(result => [new Date(result.timestamp).toISOString(), result.prediction, result.sampleCount, result.samplingRateHz, result.sampleCount / result.samplingRateHz, result.features.mag_diff_lag2_meanabs, result.features.vedba_diff_lag2_meanabs_prevwin, result.features.mag_diff_lag1_meanabs, result.features.mag_acf1, result.features.mag_mean_cross_prevwin])); }
+    function exportClassifier() { const model = selectedClassifierModel(), featureKeys = model.features.map(feature => feature.key), headers = ["timestamp","classifier_id","classifier_name","prediction","sample_count","sampling_rate_hz","window_duration_s",...featureKeys]; exportCsv("rhino-classifier-windows.csv", headers, classifierResults.values().map(result => [new Date(result.timestamp).toISOString(), result.classifierId, result.classifierName, result.prediction, result.sampleCount, result.samplingRateHz, result.sampleCount / result.samplingRateHz, ...featureKeys.map(key => result.features[key])])); }
 
     connectionButton.addEventListener("click", () => device?.gatt.connected ? disconnectBLE() : connectBLE());
     measurementButton.addEventListener("click", () => setMeasuring(!measuring));
     windowLengthInput.addEventListener("change", () => { if (rawSamples.values().length) { currentStats = calculateStats(rawSamples.valuesSince(Date.now() - windowMs())); renderStats(currentStats); drawCharts(); } });
+    classifierModelInput.addEventListener("change", resetClassifierSession);
     ["activeThreshold", "stillThreshold", "peakThreshold"].forEach(id => document.getElementById(id).addEventListener("input", () => { if (currentStats?.sampleCount) { currentStats = calculateStats(rawSamples.valuesSince(Date.now() - windowMs())); renderStats(currentStats); } }));
     document.getElementById("exportRaw").addEventListener("click", exportRaw); document.getElementById("exportStats").addEventListener("click", exportStats); document.getElementById("exportClassifier").addEventListener("click", exportClassifier);
+    populateClassifierModels();
+    resetClassifierSession();
     new ResizeObserver(() => { resizeCanvas(liveCanvas, contexts.live); resizeCanvas(metricCanvas, contexts.metric); drawCharts(); }).observe(document.querySelector("main"));
   </script>
 </body>
